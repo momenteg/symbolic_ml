@@ -1,0 +1,63 @@
+###############################################
+###############################################
+###                                         ###
+###      CONFIG FILE FOR SKLEARN-BASED      ###
+###          SYMBOLIC ML MODELING           ###
+###                                         ###
+###############################################
+###############################################
+
+# Author   : Filippo Arcadu
+# Date     : 09/11/2018
+
+
+
+
+###############################
+#                             # 
+#   K-FOLD CROSS-VALIDATION   #
+#                             #
+###############################
+
+kfold_cv:
+    # Enable K-fold CV
+    enable: True
+
+    # How many folds
+    n_folds: 5
+
+    # Name of the column constraining the fold splitting
+    col_constr: None
+
+
+
+###############################
+#                             # 
+#             MODEL           #
+#                             #
+###############################
+
+model:
+    # Algorithm name, choose among [ 'rf' , 'svm' , 'xgboost' ]
+    algorithm: rf   
+
+    # Metric to select best model, choose among [ 'accuracy' , 'mse' , 'auc' , 'cohen_kappa' ]
+    metric: auc
+
+
+
+###############################
+#                             # 
+#    RANDOM FOREST PARAMS     #
+#                             #
+###############################
+
+rf_params:
+    # Number of trees on the forest
+    n_estimators: 2:40:5
+
+    # Criterion to measure the quality of the split, choose between [ 'entropy' , 'gini' ]
+    criterion: [ 'entropy' , 'gini' ]
+
+    #
+
