@@ -11,6 +11,7 @@ import os , sys
 import pandas as pd
 import numpy as np
 import yaml , json
+import glob
 
 
 
@@ -45,7 +46,22 @@ SEP = ';'
 #
 ################################################
 
-ALGS = [ 'rf' , 'xgboost' ]
+ALGS = [ 'rf-class' , 'rf-regr' , 'xgboost-class' , 'xgboost-regr' ]
+
+
+
+
+################################################
+#
+# ALGORITHM PARAMETER LIST
+#
+################################################
+
+RF_PARAMS = [ 'n_estimators' , 'criterion' , 'max_depth' , 'min_samples_split' ,
+              'min_samples_leaf' , 'bootstrap' , 'oob_score' , 'class_weights' ]
+
+XG_PARAMS = [ 'booster' , 'num_feature' , 'eta' , 'gamma' , 'max_depth' , 
+              'lambda' , 'alpha' , 'tree_method' ] 
 
 
 
@@ -64,10 +80,11 @@ class SYML:
     #
     ############################################
 
-    def init( self , file_in , file_cfg ):
+    def init( self , file_in , file_cfg , label=None ):
         # Assign to class
-        self._file_in  = file_in
-        self._file_cfg = file_cfg
+        self._file_in   = file_in
+        self._file_cfg  = file_cfg
+        self._add_label = label
 
         
         # Read input CSV file
@@ -92,6 +109,14 @@ class SYML:
 
         # 1-hot encoding of non-numeric variable
         self._1hot_encoding()
+
+
+        # Create label for output files
+        self._create_output_label()
+
+
+        # Create all combinations for parameter exploration
+        self._create_param_grid()
 
 
 
@@ -139,153 +164,50 @@ class SYML:
         self._n_folds = cfg[ 'validation' ][ 'n_folds' ]
 
 
+        # Get type of task
+        if '-class' in self._alg:
+            self._task_type = 'classification'
+        elif '-regr' in self._alg
+
         # Get random forest parameters
+        self._params = []
+
         if self._alg == 'rf':
             chapter = 'rf_params'
 
             if chapter in cfg.keys():
-                # No. estimators
-                if 'n_estimators' in cfg[ chapter ].keys():
-                    self._n_estimators = self._parse_arg( cfg[ chapter ][ 'n_estimators' ] ,
-                                                      arg_type = 'int'                     ,
-                                                      var      = chapter + ':n_estimators' )
-                else:
-                    self._n_estimators = 10
-
-                # Criterion
-                if 'criterion' in cfg[ chapter ].keys():
-                    self._criterion = self._parse_arg( cfg[ chapter ][ 'criterion' ] ,
-                                                       arg_type = 'string'               ,
-                                                       var      = chapter + ':criterion' )
-                else:
-                    self._criterion = 'gini'
-
-                # Max depth of tree
-                if 'max_depth' in cfg[ chapter ].keys():
-                    self._max_depth = self._parse_arg( cfg[ chapter ][ 'max_depth' ] ,
-                                                       arg_type = 'int'                  ,
-                                                       var      = chapter + ':max_depth' )
-                else:
-                    self._max_depth = None
-
-                # Min no. samples to split node
-                if 'min_samples_split' in cfg[ chapter ].keys():
-                    self._min_samples_split = self._parse_arg( cfg[ chapter ][ 'min_samples_split' ] ,
-                                                               arg_type = 'int'                          ,
-                                                               var      = chapter + ':min_samples_split' )
-                else:
-                    self._min_samples_split = 2
-
-                # Min no. samples per leaf
-                if 'min_samples_leaf' in cfg[ chapter ].keys():
-                    self._min_samples_leaf = self._parse_arg( cfg[ chapter ][ 'min_samples_leaf' ] ,
-                                                              arg_type = 'int'                         ,
-                                                              var      = chapter + ':min_samples_leaf' )
-                else:
-                    self._min_samples_leaf = 1 
-
-                # Use bootstrap
-                if 'bootstrap' in cfg[ chapter ].keys():
-                    self._bootstrap = self._parse_arg( cfg[ chapter ][ 'bootstrap' ] ,
-                                                       arg_type = 'bool'                 ,
-                                                       var      = chapter + ':bootstrap' )
-                else:
-                    self._bootstrap = True 
-
-                # Use out-of-bag-score
-                if 'oob_score' in cfg[ chapter ].keys():
-                    self._oob_score = self._parse_arg( cfg[ chapter ][ 'oob_score' ] ,
-                                                       arg_type = 'bool'                 ,
-                                                       var      = chapter + ':oob_score' )
-                else:
-                    self._oob_score = False 
-
-                # Class balance
-                if 'class_weights' in cfg[ chapter ].keys():
-                    self._class_weight = self._parse_arg( cfg[ chapter ][ 'class_weights' ] ,
-                                                          arg_type = 'string'                   ,
-                                                          var      = chapter + ':class_weigths' )
-                else:
-                    self._class_weight = 1
+                for i in range( len( RF_PARAMS ) ):
+                    if RF_PARAMS[i] in cfg[ chapter ].keys():
+                        self._params.append( self._parse_arg( cfg[ chapter ][ RF_PARAMS[i] ] ,
+                                                              arg_type = 'int'                     ,
+                                                              var      = chapter + ':' + RF_PARAMS[i] ) )
+                    else:
+                        sys.exit( 'ERROR ( SYML -- _read_config_file ): param ' + RF_PARAMS[i] + \
+                                  ' is not contained inside ' + self._file_cfg + '!\n\n' )
 
             else:
                 sys.exit( '\nERROR ( SYML -- _read_config_file ): < rf_params > not found in ' + \
                           self._file_cfg + '!\n\n' ) 
 
         
-        # Get random forest parameters
-        elif self._alg == 'xgboost':
+         # Get random forest parameters
+        if self._alg == 'xg':
             chapter = 'xg_params'
 
             if chapter in cfg.keys():
-                # Booster type
-                if 'booster' in cfg[ chapter ].keys():
-                    self._booster = self._parse_arg( cfg[ chapter ][ 'booster' ] ,
-                                                     arg_type = 'string'         ,
-                                                     var      = chapter + ':booster' )
-                else:
-                    self._booster = 'gbtree'
-
-                # Feature dimension
-                if 'num_feature' in cfg[ chapter ].keys():
-                    self._num_feature = self._parse_arg( cfg[ chapter ][ 'num_feature' ] ,
-                                                         arg_type = 'string'               ,
-                                                         var      = chapter + ':num_feature' )
-                else:
-                    self._num_feature = None
-
-                # Step size shrinkage
-                if 'eta' in cfg[ chapter ].keys():
-                    self._eta = self._parse_arg( cfg[ chapter ][ 'eta' ] ,
-                                                 arg_type = 'float'      ,
-                                                 var      = chapter + ':eta' )
-                else:
-                    self._eta = 0.3
-
-                # Minimum loss reduction 
-                if 'gamma' in cfg[ chapter ].keys():
-                    self._gamma = self._parse_arg( cfg[ chapter ][ 'gamma' ] ,
-                                                   arg_type = 'float'        ,
-                                                   var      = chapter + ':gamma' )
-                else:
-                    self._gamma = 0 
-
-                # L2-regularization
-                if 'lambda' in cfg[ chapter ].keys():
-                    self._lambda = self._parse_arg( cfg[ chapter ][ 'lambda' ] ,
-                                                    arg_type = 'float'         ,
-                                                    var      = chapter + ':lambda' )
-                else:
-                    self._lambda = 1 
-
-                # Max depth
-                if 'max_depth' in cfg[ chapter ].keys():
-                    self._max_depth = self._parse_arg( cfg[ chapter ][ 'max_depth' ] ,
-                                                       arg_type = 'int'              ,
-                                                       var      = chapter + ':max_depth' )
-                else:
-                    self._max_depth = 6
-
-                # L1-regularization
-                if 'alpha' in cfg[ chapter ].keys():
-                    self._alpha = self._parse_arg( cfg[ chapter ][ 'alpha' ] ,
-                                                   arg_type = 'float'        ,
-                                                   var      = chapter + ':alpha' )
-                else:
-                    self._alpha = 0.0 
-
-                # Class balance
-                if 'tree_method' in cfg[ chapter ].keys():
-                    self._tree_method = self._parse_arg( cfg[ chapter ][ 'tree_method' ] ,
-                                                         arg_type = 'string'                   ,
-                                                         var      = chapter + ':tree_method' )
-                else:
-                    self._class_weight = 1
+                for i in range( len( XG_PARAMS ) ):
+                    if XG_PARAMS[i] in cfg[ chapter ].keys():
+                        self._params.append( self._parse_arg( cfg[ chapter ][ XG_PARAMS[i] ] ,
+                                                              arg_type = 'int'                     ,
+                                                              var      = chapter + ':' + XG_PARAMS[i] ) )
+                    else:
+                        sys.exit( 'ERROR ( SYML -- _read_config_file ): param ' + XG_PARAMS[i] + \
+                                  ' is not contained inside ' + self._file_cfg + '!\n\n' )
 
             else:
                 sys.exit( '\nERROR ( SYML -- _read_config_file ): < xg_params > not found in ' + \
                           self._file_cfg + '!\n\n' ) 
-    
+   
 
 
     ############################################
@@ -493,13 +415,291 @@ class SYML:
 
     ############################################
     #
+    #  Create output label
+    #
+    ############################################
+
+    def _create_output_label( self ):
+        from time import gmtime, strftime
+        import random        
+
+        str_time = strftime("%Y-%m-%d-%H-%M-%S", gmtime())
+        hash_out = random.getrandbits( 64 )
+
+        if self._alg == 'rf':
+            string_alg = self._alg
+        elif self._alg == 'xgboost':
+            string_alg = 'xg'
+
+        if self._add_label is None:
+            self._label_out = string_alg + '_' + str_time + '_' + hash_out
+        else:
+            self._label_out = string_alg + '_' + self._add_label + '_' + str_time + '_' + hash_out
+
+
+
+    ############################################
+    #
+    #  Create param grid
+    #
+    ############################################
+
+    def _create_param_grid( self ):
+        import itertools
+
+        if self._alg == 'rf' or self._alg == 'xgboost':
+            self._param_combs = list( itertools.product( self._params[0] , self._params[1] ,
+                                                         self._params[2] , self._params[3] ,
+                                                         self._params[4] , self._params[5] ,
+                                                         self._params[6] , self._params[7] ) )  
+        
+
+
+    ############################################
+    #
     #  Training
     #
     ############################################
 
     def _train():
         # Split dataset
-        self._split_data()
+        self._split_data( save=True )
 
 
-        # 
+        # Run training 
+        self._run_train()
+
+
+
+    ############################################
+    #
+    # Split data
+    #
+    ############################################
+
+    def _split_data( save=False ):
+        from sklearn.model_selection import StratifiedKFold
+
+        # Get constrained column
+        if self._col_constr is None:
+            inds  = np.arange( self._df.shape )
+            y_sel = self._df[ self._col_out ].values
+        
+        else:
+            constr              = self._df[ self._constr ].values
+            constr_un , inds_un = np.unique( constr , return_index=True )
+            
+            inds  = np.arange( len( inds_un ) )
+            y     = self._df[ self._col_out ].values
+            y_sel = y[ inds_un ]
+
+
+        # Get number of labels
+        self._n_labels = len( np.unique( y_sel ) )
+
+        
+        # Case multiple splits to do k-fold cross-validation
+        if self._kfold_cv:
+            strat_kfold = StratifiedKFold( n_splits = self._nfolds )
+
+            inds_train = [];  inds_test = []
+
+            for train_index, test_index in skf.split( inds , y_sel ):
+                inds_train.append( train_index )
+                inds_test.append( test_index )                          
+
+
+        # Case single split
+        else:
+            if self._testing < 1.0:
+                mem           = self._testing
+                self._testing = 20
+                print( 'Warning ( SYML -- _split_data ): selected percentage for testing is too low ' + \
+                       '(' + str( mem ) + ')!\nTesting percentage set to ' + str( self._testing ) )
+
+            n_test     = myint( self._df.shape[0] * self._testing / 100.0 )
+            
+            inds_test  = random.sample( inds , n_test )
+            inds_train = np.setdiff1d( inds , inds_test )
+            
+            inds_test  = [ inds_test.tolist() ] 
+            inds_train = [ inds_train.tolist() ] 
+
+
+        # Get real indices
+        inds_real_train = [];  inds_real_test = [] 
+         
+        for i in range( len( inds_train ) ):
+            if self._col_constr is None:
+                inds_real_train.append( inds_train )
+                inds_real_test.append( inds_test )
+
+            else:
+                for j in range( len( inds_train[i] ) ):
+                    inds_all_train = []
+                    pid            = constr_un[ inds_train[i][j] ]
+                    inds_all_pid   = np.argwhere( constr == pid )[0]
+            
+                    for ind in inds_all_pid:  
+                        inds_all_train.append( ind )
+
+                    inds_real_train.append( inds_all_train )
+
+                for j in range( len( inds_test[i] ) ):
+                    inds_all_test = []
+                    pid           = constr_un[ inds_test[i][j] ]
+                    inds_all_pid  = np.argwhere( constr == pid )[0]
+            
+                    for ind in inds_all_pid:  
+                        inds_all_test.append( ind )
+
+                    inds_real_test.append( inds_all_test )
+
+
+        # Split data frame
+        self._df_train = [];  self._df_test = [];  self._nsplit = 0
+    
+        for i in range( len( inds_real_train ) ):
+            self._df_train.append( self._df_enc.iloc[ inds_real_train[i] ] )
+            self._df_test.append( self._df_enc.iloc[ inds_real_test[i] ] )
+            self._n_split += 1
+
+
+        # Save splits
+        if save:
+            if len( inds_real_train ) == 1:
+                df_aux  = self._df.iloc[ inds_real_train[0] ]
+                fileout = os.path.join( self._path_out , 'syml_split_train_' + self._label_out + '.csv' )
+                df_aux.to_csv( fileout , sep=SEP , index=False )
+
+                df_aux  = self._df.iloc[ inds_real_test[0] ]
+                fileout = os.path.join( self._path_out , 'syml_split_test_' + self._label_out + '.csv' )
+                df_aux.to_csv( fileout , sep=SEP , index=False )
+
+            else:
+                for i in range( len( inds_real_train ) ):
+                    if i < 10:
+                        str_fold = '0' + str( i )
+                    else:
+                        str_fold = str( i )
+
+                    df_aux  = self._df.iloc[ inds_real_train[i] ]
+                    fileout = os.path.join( self._path_out , 'syml_split_train_' + str_fold + '_' + \
+                                                 self._label_out + '.csv' )
+                    df_aux.to_csv( fileout , sep=SEP , index=False )
+
+                    df_aux  = self._df.iloc[ inds_real_test[i] ]
+                    fileout = os.path.join( self._path_out , 'syml_split_test_' + str_fold + '_' + \ 
+                                                self._label_out + '.csv' )
+                    df_aux.to_csv( fileout , sep=SEP , index=False )
+
+
+
+    ############################################
+    #
+    #  Run algorithm training
+    #
+    ############################################
+
+    def _run_train():
+        # Initalize filenames for output files
+        self._create_output_filenames()
+
+
+        # Load modules
+        if self._alg == 'rf':
+            from sklearn.ensemble import RandomForestClassifier
+        elif self._alg == 'xg_boost':
+            from xgboost import XGBClassifier
+
+
+        # For loop of param grid search
+        for i in range( len( self._param_combs ) ):
+            print( '\t.... training at grid point n.', i,' out of ', len( self._param_combs ) )
+
+            
+            # For loop on k-fold for cross-validation
+            for j in range( self._n_split ):
+                if self._kfold_cv:
+                    print( '\t\t .... using fold n.', j )
+
+                # Get training data
+                x_train = self._df_train[ j ][ self._feats ].values
+                y_train = self._df_train[ j ][ self._col_out ].values
+ 
+                
+                # Initialize algorithm
+                if self._alg == 'rf':
+                    clf = RandomForestClassifier( n_estimators      = self._param_combs[i][0] , 
+                                                  criterion         = self._param_combs[i][1] ,
+                                                  max_depth         = self._param_combs[i][2] ,
+                                                  min_samples_split = self._param_combs[i][3] ,     
+                                                  min_samples_leaf  = self._param_combs[i][4] ,
+                                                  bootstrap         = self._param_combs[i][5] , 
+                                                  oob_score         = self._param_combs[i][6] ,
+                                                  class_weights     = self._param_combs[i][7] )
+
+                elif self._alg == 'xg_boost':
+                    clf =  XGBClassifier( booster     = self._param_combs[i][0] , 
+                                          num_feature = self._param_combs[i][1] ,
+                                          eta         = self._param_combs[i][2] ,
+                                          gamma       = self._param_combs[i][3] ,     
+                                          max_depth   = self._param_combs[i][4] ,
+                                          lambda      = self._param_combs[i][5] , 
+                                          alpha       = self._param_combs[i][6] ,
+                                          tree_method = self._param_combs[i][7] )
+
+            
+                # Fit data
+                clf.fit( x_train , y_train )
+
+
+                # Get testing data
+                x_test = self._df_test[ j ][ self._feats ].values
+                y_test = self._df_test[ j ][ self._col_out ].values
+ 
+                
+                # Predict on testing data
+                y_prob = clf._predict_proba( x_test )
+
+
+                # Compute testing metrics
+                self._compute_testing_metrics( y_test , y_prob )
+
+
+                # Save model if selected metric has improved
+                self._save_model()
+
+
+                # Save update logger
+                self._update_logger( n_iter=i , n_fold=j )
+
+
+
+    ############################################
+    #
+    #  Create output filenames
+    #
+    ############################################
+
+    def _create_output_filenames( self ):
+        # CSV logger
+        self._csv_logger = os.path.join( self._path_out , 'syml_logger_' + self._label_out + '.csv' )
+
+        # Model
+        self._file_model = os.path.join( self._path_out , 'syml_model_' + self._label_out + '.pkl' )
+
+        # Predictions on testing
+        self._file_preds = os.path.join( self._path_out , 'syml_test_preds_' + self._label_out + '.json' )
+        
+    
+
+    ############################################
+    #
+    #  Compute testing metrics
+    #
+    ############################################
+
+    def _compute_testing_metrics( self , y_true , y_prob ):
+        if hasattr( self , '_ ):        
+

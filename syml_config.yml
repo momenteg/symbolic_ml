@@ -15,8 +15,8 @@ CONFIG FILE FOR SKLEARN-BASED
 ###############################
 
 model:
-    # Algorithm name, choose among [ 'rf' , 'xgboost' ]
-    algorithm: rf   
+    # Algorithm name, choose among [ 'rf-class' , 'rf-regr' , 'xgboost-class' , 'xgboost-regr' ]
+    algorithm: rf-class   
 
     # Metric to select best model, choose among [ 'accuracy' , 'mse' , 'auc' , 'cohen_kappa' ]
     metric: auc
@@ -42,7 +42,7 @@ model:
 
 validation:
     # Data percentage for testing
-    testing: 0
+    testing: 20
 
     # Name of the column constraining the fold splitting
     col_constr: None

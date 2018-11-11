@@ -99,13 +99,15 @@ def main():
 
     # Initialize SYML class
     syml = SYML( args.file_in  ,
-                 args.file_cfg )
+                 args.file_cfg , 
+                 label = args.label )
 
 
     # Check prints
     print( '\nINPUTS' )
     print( 'CSV data file: ', syml._file_in )
     print( 'YAML config file: ', syml._file_cfg )
+    print( 'Additional label: ', syml._add_label )
     
     print( '\nMODEL' )
     print( 'Algorithm: ', syml._alg )
@@ -120,7 +122,10 @@ def main():
     print( 'K-fold cross-validation: ', syml._kfold_cv )
     
     if syml._kfold_cv:
-        print( 'No. folds for cross-validation: ', syml._kfold_cv ) 
+        print( 'No. folds for cross-validation: ', syml._kfold_cv )
+
+    print( '\nLabel for output files: ', syml._label_out )
+    print( '\nNumber of parameter grid points: ', len( syml._param_combs ) ) 
 
 
     # Check feature and outcome variables
