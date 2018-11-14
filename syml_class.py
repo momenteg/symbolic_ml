@@ -642,7 +642,11 @@ class SYML:
 
 
                 # Save model if selected metric has improved
-                self._save_model( y_test , y_prob )
+                self._save_model()
+
+
+                # Save model if selected metric has improved
+                self._save_history( y_test , y_prob )
 
 
                 # Save config file
@@ -666,7 +670,7 @@ class SYML:
         self._file_model = os.path.join( self._path_out , 'syml_model_' + self._label_out + '.pkl' )
 
         # Predictions on testing
-        self._file_preds = os.path.join( self._path_out , 'syml_test_preds_' + self._label_out + '.json' )
+        self._file_histo = os.path.join( self._path_out , 'syml_history_' + self._label_out + '.json' )
         
         # Predictions on testing
         self._file_yaml = os.path.join( self._path_out , 'syml_config_' + self._label_out + '.yml' )
@@ -769,7 +773,7 @@ class SYML:
     # Save best model according to a selected metric
     # ===================================
     
-    def _save_best_model( self , y_true , y_prob ):
+    def _save_best_model( self ):
         # Case 1 --> model improvement corresponds to a metric decreasing in value
         if self._metric == 'mse':
             str_metric     = '_' + self._metric
@@ -798,10 +802,23 @@ class SYML:
                 self._save_model = False
 
 
-        # Save ground truth and predictions
+    
+    # ===================================
+    # Save best model according to a selected metric
+    # ===================================
+    
+    def _save_history( self , y_true , y_prob ):  
         if self._saved_model:
-            df = pd.DataFrame( { 'y_true': y_true.tolist() ,
-                                 'y_prob': y_prob.tolist() } )
+            df = pd.DataFrame( { 'y_true'      : y_true.tolist()      ,
+                                 'y_prob'      : y_prob.tolist()      ,
+                                 'file_csv'    : self._file_csv       ,
+                                 'task'        : self._task_type      ,
+                                 'algorithm'   : self._alg            ,
+                                 'feature_cols': self._feats.tolist() ,
+                                 'outcome_col' : self._col_out        ,
+                                 'constr_col'  : self._col_constr     ,
+                                 'metric'      : self._metric         ,
+                                 'peak_value'  : self._metric_monitor } )
 
             with open( self._file_preds , 'w' ) as fp:
                 json.dump( df , fp , sort_keys=True )
