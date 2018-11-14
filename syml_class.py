@@ -13,6 +13,7 @@ import numpy as np
 import yaml , json
 import glob
 import numbers
+import itertools
 
 from sklearn.metrics import accuracy_score , precision_score , recall_score , r2_score , \
                             f1_score , cohen_kappa_score , roc_curve , auc 
@@ -39,6 +40,7 @@ SEP = ','
 
 
 
+
 # =============================================================================
 # ML ALGORITHM LIST 
 # =============================================================================
@@ -49,11 +51,20 @@ ALGS = [ 'rf-class' , 'rf-regr' , 'xgboost-class' , 'xgboost-regr' ]
 
 
 # =============================================================================
+# TYPES OF CROSS-VALIDATION
+# =============================================================================
+
+CV_TYPES = [ 'k-fold' , 'resampling' ]
+
+
+
+
+# =============================================================================
 # ALGORITHM PARAMETER LIST 
 # =============================================================================
 
 RF_PARAMS = [ 'n_estimators' , 'criterion' , 'max_depth' , 'min_samples_split' ,
-              'min_samples_leaf' , 'bootstrap' , 'oob_score' , 'class_weights' ]
+              'min_samples_leaf' , 'bootstrap' , 'oob_score' , 'class_weight' ]
 
 XG_PARAMS = [ 'booster' , 'num_feature' , 'eta' , 'gamma' , 'max_depth' , 
               'lambda' , 'alpha' , 'tree_method' ] 
@@ -71,11 +82,13 @@ class SYML:
     # Init 
     # ===================================
     
-    def __init__( self , file_in , file_cfg , label=None ):
+    def __init__( self , file_in , file_cfg , path_out='./' , label=None , verbose=False ):
         # Assign to class
         self._file_in   = file_in
         self._file_cfg  = file_cfg
         self._add_label = label
+        self._path_out  = path_out
+        self._verbose   = verbose
 
         
         # Read input CSV file
@@ -154,11 +167,14 @@ class SYML:
         # Get validation parameters
         self._test_perc  = cfg[ 'validation' ][ 'testing' ]
         self._col_constr = cfg[ 'validation' ][ 'col_constr' ]
-        self._kfold_cv   = cfg[ 'validation' ][ 'kfold_cv' ]
-        self._n_folds    = cfg[ 'validation' ][ 'n_folds' ]
+        self._cv_type    = cfg[ 'validation' ][ 'cv_type' ]
+        self._n_splits   = cfg[ 'validation' ][ 'n_folds' ]
 
         if self._col_constr == 'None':
             self._col_constr = None
+        
+        if self._cv_type == 'None':
+            self._cv_type = None
 
 
         # Get type of task
@@ -203,7 +219,12 @@ class SYML:
 
             else:
                 sys.exit( '\nERROR ( SYML -- _read_config_file ): < xg_params > not found in ' + \
-                          self._file_cfg + '!\n\n' ) 
+                          self._file_cfg + '!\n\n' )
+
+
+        # Print params
+        if self._verbose:
+            print( 'Params:\n', self._params )
    
 
     
@@ -213,48 +234,62 @@ class SYML:
  
     def _parse_arg( self , arg , var='variable' ):
         try:
-            arg = str( arg )
-
-            # Case "," is present
-            if ',' in arg:
-                entries   = arg.split( ',' )
-                n_entries = len( entries )
-                arg_type  = self._get_type( entries[0] )
-        
-            # Case ":" is present
-            elif ':' in arg:
-                entries   = arg.split( ':' )
-                n_entries = len( entries )
-                arg_type  = self._get_type( entries[0] )
-
             # Case single entry
+            if self._is_single_variable( arg ): 
+                return [ arg ]
+
+
+            # Case multiple entries
             else:
-                entries   = arg
-                n_entries = 1
-                arg_type  = self._get_type( entries )
+                # Case "," is present
+                if ',' in arg:
+                    entries   = arg.split( ',' )
+                    n_entries = len( entries )
+                    arg_type  = self._get_type( entries[0] )
+        
+                # Case ":" is present
+                elif ':' in arg:
+                    entries   = arg.split( ':' )
+                    n_entries = len( entries )
+                    arg_type  = self._get_type( entries[0] )
 
-            # Convert to either integer or float
-            if arg_type != str and arg_type != bool:
-                if n_entries > 1:
-                    for i in range( n_entries ):
+                # Convert to either integer or float
+                if arg_type != str and arg_type != bool:
+                    if n_entries > 1:
+                        for i in range( n_entries ):
+                            if arg_type == myint:
+                                entries[i] = myint( entries[i] )
+                            elif arg_type == myfloat:
+                                entries[i] = myfloat( entries[i] )
+
+                        if ':' in arg and ( arg_type == myint or argtype == myfloat ):
+                            entries = np.linspace( myfloat( entries[0] ) , 
+                                                   myfloat( entries[1] ) ,
+                                                   myfloat( entries[2] ) )
+
                         if arg_type == myint:
-                            entries[i] = myint( entries[i] )
-                        elif arg_type == myfloat:
-                            entries[i] = myfloat( entries[i] )
+                            entries = entries.astype( myint )
 
-                    if ':' in arg and ( arg_type == myint or argtype == myfloat ):
-                        entries = np.linspace( myfloat( entries[0] ) , 
-                                               myfloat( entries[1] ) ,
-                                               myfloat( entries[2] ) )
-
-                    if arg_type == myint:
-                        entries = entries.astype( myint )
-
+                        entries = entries.tolist()
         
         except:
             sys.exit( '\nERROR ( SYML -- _parse_arg ): issue with ' + var + '!\n\n' )
 
         return entries
+
+
+
+    def _is_single_variable( self , arg ):
+        if isinstance( arg , myint ) or \
+            isinstance( arg , myfloat ) or \
+                isinstance( arg , myfloat2 ) or \
+                    isinstance( arg , bool )   or \
+                        ( isinstance( arg , str ) and ( ',' not in arg ) and ( ':' not in arg ) ): 
+            return True
+        
+        else:
+            return False
+
 
 
     def _get_type( self , var ):
@@ -434,7 +469,20 @@ class SYML:
                 self._keys_enc = [ self._col_out ]
             else:
                 self._keys_enc += [ self._col_out ]
-            
+
+
+        # New keys to use for training
+        if len( self._keys_enc ):
+            self._key_enc_feat = self._df_enc.keys().tolist()
+            self._key_enc_feat.remove( self._col_out )
+
+            if self._col_constr is not None:
+                self._key_enc_feat.remove( self._col_constr )
+
+        else:
+            self._key_enc_feat = self._feats[:]
+
+        self._key_enc_out = self._col_out   
 
 
     def _is_numeric( self , key ):
@@ -471,8 +519,6 @@ class SYML:
     # ===========================================
 
     def _create_param_grid( self ):
-        import itertools
-
         if 'rf-' in self._alg or 'xgboost-' in self._alg:
             self._param_combs = list( itertools.product( self._params[0] , self._params[1] ,
                                                          self._params[2] , self._params[3] ,
@@ -487,12 +533,12 @@ class SYML:
 
     def _train( self ):
         # Split dataset
-        print( '\nSplitting input data frame ....' )
+        print( '\n\nSplitting input data frame ....' )
         self._split_data( save=True )
 
 
         # Run training 
-        print( '\nTraining model ....' )
+        print( '\n\nTraining model ....' )
         self._run_train()
 
 
@@ -508,7 +554,9 @@ class SYML:
         if self._col_constr is None:
             inds  = np.arange( self._df.shape )
             y_sel = self._df[ self._col_out ].values
-        
+            
+            print( '\t.... splitting occurring with respect to no column' )
+
         else:
             constr              = self._df[ self._col_constr ].values
             constr_un , inds_un = np.unique( constr , return_index=True )
@@ -517,27 +565,24 @@ class SYML:
             y     = self._df[ self._col_out ].values
             y_sel = y[ inds_un ]
 
-        print( 'len(  constr ): ', len( constr ) )
-        print( 'len( y_sel ): ', len( y_sel ) )
-        print( 'len( inds ): ', len( inds ) )
+            print( '\t.... splitting occurring with respect to column ', self._col_constr,
+                   ' that contains ', len( inds ),' unique values' )
+
+       
+        # Initialize lists
+        inds_train = [];  inds_test = []
 
 
-        # Get number of labels
-        self._n_labels = len( np.unique( y_sel ) )
-
-        
         # Case multiple splits to do k-fold cross-validation
-        if self._kfold_cv:
-            strat_kfold = StratifiedKFold( n_splits = self._n_folds )
-
-            inds_train = [];  inds_test = []
+        if self._cv_type == 'k-fold':
+            strat_kfold = StratifiedKFold( n_splits = self._n_splits )
 
             for train_index, test_index in strat_kfold.split( inds , y_sel ):
                 inds_train.append( train_index )
-                inds_test.append( test_index )                          
+                inds_test.append( test_index )
 
 
-        # Case single split
+        # Case random resampling cross-validation or single split
         else:
             if self._testing < 1.0:
                 mem             = self._test_perc
@@ -545,54 +590,72 @@ class SYML:
                 print( 'Warning ( SYML -- _split_data ): selected percentage for testing is too low ' + \
                        '(' + str( mem ) + ')!\nTesting percentage set to ' + str( self._test_perc ) )
 
-            n_test     = myint( self._df.shape[0] * self._test_perc / 100.0 )
+            if self._cv_type is None:
+                n_test     = myint( self._df.shape[0] * self._test_perc / 100.0 )
             
-            inds_test  = random.sample( inds , n_test )
-            inds_train = np.setdiff1d( inds , inds_test )
+                inds_test  = random.sample( inds , n_test )
+                inds_train = np.setdiff1d( inds , inds_test )
             
-            inds_test  = [ inds_test.tolist() ] 
-            inds_train = [ inds_train.tolist() ] 
+                inds_test  = [ inds_test.tolist() ] 
+                inds_train = [ inds_train.tolist() ]
+
+            elif self._cv_type == 'resampling':
+                for i in range( self._n_splits ):
+                    inds_test  = random.sample( inds , n_test )
+                    inds_train = np.setdiff1d( inds , inds_test )
+            
+                inds_test.append( inds_test.tolist() )
+                inds_train.append( inds_train.tolist() )
 
 
         # Get real indices
-        inds_real_train = [];  inds_real_test = [] 
-         
-        for i in range( len( inds_train ) ):
-            if self._col_constr is None:
-                inds_real_train.append( inds_train )
-                inds_real_test.append( inds_test )
+        if self._col_constr is None:
+            inds_real_train = inds_train[:]
+            inds_real_test  = inds_test[:]
 
-            else:
+        else:
+            inds_real_train = [];  inds_real_test = [] 
+            
+            for i in range( len( inds_train ) ):
+                inds_all_train = []
+
                 for j in range( len( inds_train[i] ) ):
-                    inds_all_train = []
                     pid            = constr_un[ inds_train[i][j] ]
                     inds_all_pid   = np.argwhere( constr == pid )[0]
             
                     for ind in inds_all_pid:  
                         inds_all_train.append( ind )
 
-                    inds_real_train.append( inds_all_train )
+                inds_real_train.append( inds_all_train )
+
+                inds_all_test = []
 
                 for j in range( len( inds_test[i] ) ):
-                    inds_all_test = []
                     pid           = constr_un[ inds_test[i][j] ]
                     inds_all_pid  = np.argwhere( constr == pid )[0]
             
                     for ind in inds_all_pid:  
                         inds_all_test.append( ind )
 
-                    inds_real_test.append( inds_all_test )
+                inds_real_test.append( inds_all_test )
+
+
+        # Checkpoint
+        for i in range( len( inds_real_train ) ):
+            self._are_train_and_test_disjoint( inds_real_train[i] , inds_real_test[i] )
+        
+        if self._cv_type == 'k-fold':
+            self._are_test_folds_disjoint( inds_real_test )
 
 
         # Split data frame
-        self._df_train = [];  self._df_test = [];  self._n_split = 0
+        self._df_train = [];  self._df_test = []
     
         for i in range( len( inds_real_train ) ):
             self._df_train.append( self._df_enc.iloc[ inds_real_train[i] ] )
             self._df_test.append( self._df_enc.iloc[ inds_real_test[i] ] )
-            self._n_split += 1
-
-
+        
+        
         # Save splits
         if save:
             if len( inds_real_train ) == 1:
@@ -622,12 +685,41 @@ class SYML:
                     df_aux.to_csv( fileout , sep=SEP , index=False )
 
 
+    
+    # ===========================================
+    # Are training and testing sets disjoint?
+    # ===========================================
+
+    def _are_train_and_test_disjoint( self , inds_train , inds_test ):
+        intersec = np.intersect1d( np.array( inds_train ) , np.array( inds_test ) )
+
+        if len( intersec ):
+            sys.exit( '\nERROR ( SYML -- _are_train_and_test_disjoint ): training and testing splits are not disjoint!\n\n' ) 
+
+    
+    
+    # ===========================================
+    # Are training and testing sets disjoint?
+    # ===========================================
+
+    def _are_test_folds_disjoint( self , inds_test_list ):
+        n_el  = len( inds_test_list )
+        ii    = np.arange( n_el ).tolist()
+        combs = list( itertools.combinations( ii , 2 ) )
+
+        for i in range( len( combs ) ):
+            intersec = np.intersect1d( np.array( inds_test_list[combs[i][0]] ) , inds_test_list[combs[i][1]] )
+
+            if len( intersec ):
+                sys.exit( '\nERROR ( SYML -- _are_test_folds_disjoint ): testing splits of different folds are not disjoint!\n\n' ) 
+
+
 
     # ===========================================
     # Run algorithm training
     # ===========================================
 
-    def _run_train():
+    def _run_train( self ):
         # Initalize filenames for output files
         self._create_output_filenames()
 
@@ -645,7 +737,7 @@ class SYML:
                 from sklearn.ensemble import RandomForestRegressor
                 Algorithm = RandomForestRegressor
 
-            kwargs = pd.DataFrame( columns = RF_PARAM_LIST )
+            kwargs = pd.DataFrame( columns = RF_PARAMS )
 
         elif 'xg_boost' in self._alg:
             if self._task_type == 'classification':
@@ -655,29 +747,45 @@ class SYML:
                 from xgboost import XGBRegressor
                 Algorithm = XGBRegressor
 
-            kwargs = pd.DataFrame( columns = XG_PARAM_LIST )
+            kwargs = pd.DataFrame( columns = XG_PARAMS )
 
 
         # For loop of param grid search
         for i in range( len( self._param_combs ) ):
             print( '\t.... training at grid point n.', i,' out of ', len( self._param_combs ) )
-            
+           
+            # Initialize list of metrics and probabilities
+            metrics = [];  trues = [];  probs = []
+
             # For loop on k-fold for cross-validation
-            for j in range( self._n_split ):
-                if self._kfold_cv:
-                    print( '\t\t .... using fold n.', j )
+            for j in range( self._n_splits ):
+                if self._cv_type == 'k-fold':
+                    print( '\t\t.... using fold n.', j )
+                elif self._cv_type == 'resampling':
+                    print( '\t\t.... using split n.', j )
 
                 # Get training data
-                x_train = self._df_train[ j ][ self._feats ].values
-                y_train = self._df_train[ j ][ self._col_out ].values
- 
+                x_train = self._df_train[ j ][ self._key_enc_feat ].values.astype( myfloat )
+                y_train = self._df_train[ j ][ self._key_enc_out ].values.astype( myfloat )
+
+                if self._verbose:
+                    print( '\t\t.... using ', len( self._key_enc_feat ),'features ', self._key_enc_feat )
+                    print( '\t\t.... predicting outcome ', self._key_enc_out )
+
                 
                 # Get grid point parameters
                 row = []
                 for param in self._param_combs[i]:
                     row.append( param )
                     
-                kwargs.iloc[0] = row
+                #kwargs.loc[0] = row
+
+                kwargs = dict( { 'n_estimators':2 , 'criterion': 'gini'} ) 
+                #row = [ 2 , 'gini' ]
+                #kwargs.loc[0] = row
+                
+                if self._verbose:
+                    print( '\t\t.... using kwargs: \n', kwargs )
 
 
                 # Initialize algorithm
@@ -689,32 +797,41 @@ class SYML:
 
 
                 # Get testing data
-                x_test = self._df_test[ j ][ self._feats ].values
-                y_test = self._df_test[ j ][ self._col_out ].values
+                x_test = self._df_test[ j ][ self._key_enc_feat ].values
+                y_test = self._df_test[ j ][ self._key_enc_out ].values
  
                 
                 # Predict on testing data
-                y_prob = self._clf._predict_proba( x_test )
+                y_prob = self._clf.predict_proba( x_test )
 
 
                 # Compute testing metrics
-                self._compute_testing_metrics( y_test , y_prob )
+                metrics.append( self._compute_metrics( y_test , y_prob ) )
+                trues.append( y_test.tolist() )
+                probs.append( y_prob.tolist() )
+
+            
+            # --------- Outside the loop on data splits for cross-validation
+
+            # Evaluate metrics
+            save = self._evaluate_metrics( metrics ) 
+            
+            
+            # Save update logger
+            self._update_logger( kwargs , n_grid=i , save=save )
 
 
+            if save:
                 # Save model if selected metric has improved
                 self._save_model()
 
 
                 # Save model if selected metric has improved
-                self._save_history( y_test , y_prob )
+                self._save_history( trues , probs )
 
 
                 # Save config file
                 self._save_config( kwargs )
-
-
-                # Save update logger
-                self._update_logger( kwargs , n_grid=i , n_fold=j )
 
 
 
@@ -805,6 +922,8 @@ class SYML:
             print( '\t\tmse: %s - r_squared: %s ' % \
                   ( self._num2str( self._accuracy ) , self._num2str( self._cohen_kappa ) ) ) 
 
+        return getattr( self , '_' + self._metric )
+
 
 
     # ===================================
@@ -827,115 +946,45 @@ class SYML:
         self._sensitivity = tpr[ i_max ][0]
         self._specificity = 1 - fpr[ i_max ][0]
         
-        
-        
+    
+
     # ===================================
-    # Save best model according to a selected metric
+    # Evaluate metrics
     # ===================================
     
-    def _save_best_model( self ):
-        # Case 1 --> model improvement corresponds to a metric decreasing in value
+    def _evaluate_metrics( self , metrics ):
+        metrics = np.array( metrics )
+        mean    = np.mean( metrics )
+        std     = np.std( metrics )
+
         if self._metric == 'mse':
-            str_metric     = '_' + self._metric
-            metric_current = getattr( self , str_metric )  
-            
-            if metric_current < self._metric_monitor:
-                self._metric_monitor = metric_current
-                self._save_model     = True
-                joblib.dump( self._clf , self._file_model )
-                print( '\t\tTesting ', self._metric.upper() ,' has improved: saving best model to ' , self._file_model )            
+            if mean < self._metric_monitor:
+                self._metric_monitor = mean
+                print( '\t\t--------> Testing mean ', self._metric.upper() ,' has improved' )            
+                return True
             else:
-                self._save_model = False
-
-
-        # Case 2 --> model improvement corresponds to a metric increasing in value 
+                return False
+            
         else:
-            str_metric     = '_' + self._metric
-            metric_current = getattr( self , str_metric )  
-            
-            if metric_current > self._metric_monitor:
-                self._metric_monitor = metric_current
-                self._save_model     = True
-                joblib.dump( self._clf , self._file_model )
-                print( '\t\tTesting ', self._metric.upper() ,' has improved: best model saved to ' , self._file_model )            
+            if mean > self._metric_monitor:
+                self._metric_monitor = mean
+                print( '\t\t--------> Testing mean ', self._metric.upper() ,' has improved' )            
+                return True
             else:
-                self._save_model = False
+                return False
 
-
-    
-    # ===================================
-    # Save best model according to a selected metric
-    # ===================================
-    
-    def _save_history( self , y_true , y_prob ):  
-        if self._saved_model:
-            df = pd.DataFrame( { 'y_true'      : y_true.tolist()      ,
-                                 'y_prob'      : y_prob.tolist()      ,
-                                 'file_csv'    : self._file_csv       ,
-                                 'task'        : self._task_type      ,
-                                 'algorithm'   : self._alg            ,
-                                 'feature_cols': self._feats.tolist() ,
-                                 'outcome_col' : self._col_out        ,
-                                 'constr_col'  : self._col_constr     ,
-                                 'metric'      : self._metric         ,
-                                 'peak_value'  : self._metric_monitor } )
-
-            with open( self._file_preds , 'w' ) as fp:
-                json.dump( df , fp , sort_keys=True )
-            
-            print( '\t\tTesting probabilities saved to ', self._file_histo )
-       
-    
-    
-    # ===================================
-    # Print number as string with a certain precision 
-    # ===================================
-    
-    def _num2str( self , num ):
-        return str( round( num , 4 ) )
-
-
-    
-    # ===================================
-    # Write config file
-    # ===================================
-    
-    def _save_config( kwargs ):
-        if self._saved_model:     
-            dict = { 'model': { 'algorithm': self._alg     ,
-                                'metric'   : self._metric  ,
-                                'col_out'  : self._col_out ,
-                                'select'   : select        ,
-                                'exclude'  : exclude       } ,
-                     'validation': { 'testing'   : self._perc_test  ,
-                                     'col_constr': self._col_constr , 
-                                     'kfold_cv'  : self._kfold_cv   ,
-                                     'n_folds'   : self._n_folds    } }
-
-            if 'rf' in self._alg:
-                aux = { 'rf_params': kwargs }
-            elif 'xg' in self._alg:
-                aux = { 'xg_params': kwargs }
-
-            dict.update( aux )
-
-            with open( fileout , 'w' ) as outfile:
-                yaml.dump( dict , outfile , default_flow_style=False )
-        
-            print( '\t\tConfig file has been saved to ', self._file )     
-
-  
+ 
 
     # ===================================
     # Update logger
     # ===================================
     
-    def _update_logger( self , df_params , n_grid=0 , n_fold=0 ):
+    def _update_logger( self , df_params , n_grid=0 , save=False ):
         # Common data frame
         df = pd.DataFrame( { 'hash'      : self._label_out   ,
                              'task'      : self._task_type   ,
-                             'n_grid'    : self._n_grid      ,
-                             'n_fold'    : self._n_fold      ,
+                             'n_grid'    : n_grid            ,
+                             'n_splits'  : self._n_splits    ,
                              'save_model': self._saved_model ,
                              } )
 
@@ -976,3 +1025,75 @@ class SYML:
             df.to_csv( self._file_logger , 
                        sep=SEP , index=False )
 
+        print( '\t\tUpdated logger ', self._file_logger )
+
+    
+    
+    # ===================================
+    # Save model according to a selected metric
+    # ===================================
+    
+    def _save_model( self ):
+        joblib.dump( self._clf , self._file_model )
+        print( '\t\t--------> Best model saved to ' , self._file_model )            
+
+
+    
+    # ===================================
+    # Save best model according to a selected metric
+    # ===================================
+    
+    def _save_history( self , trues , probs ):  
+        df = pd.DataFrame( { 'y_true'      : trues            ,
+                             'y_prob'      : probs            ,
+                             'file_in'     : self._file_in    ,
+                             'task'        : self._task_type  ,
+                             'algorithm'   : self._alg        ,
+                             'feature_cols': self._feats      ,
+                             'outcome_col' : self._col_out    ,
+                             'constr_col'  : self._col_constr ,
+                             'metric'      : self._metric         ,
+                             'peak_value'  : self._metric_monitor } )
+
+        with open( self._file_preds , 'w' ) as fp:
+            json.dump( df , fp , sort_keys=True )
+            
+        print( '\t\t--------> Testing probabilities saved to ', self._file_histo )
+       
+    
+    
+    # ===================================
+    # Print number as string with a certain precision 
+    # ===================================
+    
+    def _num2str( self , num ):
+        return str( round( num , 4 ) )
+
+
+    
+    # ===================================
+    # Write config file
+    # ===================================
+    
+    def _save_config( kwargs ):
+        dict = { 'model': { 'algorithm': self._alg     ,
+                            'metric'   : self._metric  ,
+                            'col_out'  : self._col_out ,
+                            'select'   : select        ,
+                            'exclude'  : exclude       } ,
+                 'validation': { 'testing'   : self._perc_test  ,
+                                 'col_constr': self._col_constr , 
+                                 'cv_type'   : self._cv_type    ,
+                                 'n_folds'   : self._n_splits    } }
+
+        if 'rf' in self._alg:
+            aux = { 'rf_params': kwargs }
+        elif 'xg' in self._alg:
+            aux = { 'xg_params': kwargs }
+
+        dict.update( aux )
+
+        with open( fileout , 'w' ) as outfile:
+            yaml.dump( dict , outfile , default_flow_style=False )
+        
+        print( '\t\t--------> Config file has been saved to ', self._file )     
