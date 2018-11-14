@@ -823,7 +823,7 @@ class SYML:
             with open( self._file_preds , 'w' ) as fp:
                 json.dump( df , fp , sort_keys=True )
             
-            print( '\t\tTesting probabilities saved to ', self._file_preds )
+            print( '\t\tTesting probabilities saved to ', self._file_histo )
        
     
     
