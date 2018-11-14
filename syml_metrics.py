@@ -108,6 +108,8 @@ class Metrics:
                     fpr , tpr , thres = roc_curve( y_true , y_prob[:,1] )
                     self._auc         = auc( fpr , tpr )
                     self._calc_sens_and_spec( tpr , fpr , thres )
+                    self._tpr         = tpr
+                    self._fpr         = fpr
             
                 print( '\t\t\taccuracy: %s - precision: %s - recall: %s - f1score: %s - cohen_kappa: %s' % \
                     ( self._num2str( self._accuracy ) , self._num2str( self._precision ) ,
@@ -148,8 +150,8 @@ class Metrics:
         diff             = tpr - fpr
         i_max            = np.argwhere( diff == np.max( diff ) )
         self._threshold  = thres[ i_max ][0]
-        fpr_best         = fpr[i_max]
-        tpr_best         = tpr[i_max]
+        self._fpr_best   = fpr[i_max]
+        self._tpr_best   = tpr[i_max]
         
         
         # Compute sensitivity and specificity at optimal operating point
@@ -166,4 +168,61 @@ class Metrics:
     def _num2str( self , num ):
         return str( round( num , 4 ) )
 
+    
+    
+    # =============================================================================
+    # Get confidence interval
+    # =============================================================================
 
+    def _ci_bootstrap_roc( y_true , y_score , level=95 , n_bootstraps=1000 ):
+        # Compute metrics through bootstrapping
+        bootstrap_auc  = []
+        bootstrap_sens = []
+        bootstrap_spec = []
+
+        ind_all = np.arange( len( y_true ) )
+        
+        for i in range( n_bootstraps ):
+            ind = np.random.choice( ind_all , len( ind_all ) - 1 )
+        
+            try:
+                self._compute_metrics( y_true[ind] , y_score[ind] )
+                bootstrap_auc.append( self._auc )
+                bootstrap_sens.append( self._sensitivity )
+                bootstrap_spec.append( self._specificity )
+            
+            except:
+                pass
+            
+        
+        # Convert to array and sort
+        bootstrap_auc = np.array( bootstrap_auc ).reshape( -1 )
+        bootstrap_auc.sort()
+        
+        bootstrap_sens = np.array( bootstrap_sens ).reshape( -1 )
+        bootstrap_sens.sort()
+        
+        bootstrap_spec = np.array( bootstrap_spec ).reshape( -1 )
+        bootstrap_spec.sort()
+            
+        
+        # Get confidence interval
+        thres = ( 100 - level ) / 100.0 * 0.5
+    
+        try:
+            auc_conf_up   = bootstrap_auc[ myint( ( 1 - thres ) * n_bootstraps ) ]
+            auc_conf_down = bootstrap_auc[ myint( thres * n_bootstraps ) ]
+        
+            sens_conf_up   = bootstrap_sens[ myint( ( 1 - thres ) * n_bootstraps ) ]
+            sens_conf_down = bootstrap_sens[ myint( thres * n_bootstraps ) ]
+
+            spec_conf_up   = bootstrap_spec[ myint( ( 1 - thres ) * n_bootstraps ) ]
+            spec_conf_down = bootstrap_spec[ myint( thres * n_bootstraps ) ]
+    
+            return [ auc_conf_up , auc_conf_down ,
+                    sens_conf_up , sens_conf_down ,
+                    spec_conf_up , spec_conf_down ]
+    
+        except:
+            return [ -1 , -1 , -1 , -1 , -1 , -1 ] 
+ 
