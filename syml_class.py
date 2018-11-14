@@ -1,5 +1,5 @@
 '''
-    SYMBOLIC MODELING CLASS                                                                                     
+    SYMBOLIC MODELING CLASS                                                                 
 '''
  
 # Author   : Filippo Arcadu
@@ -16,11 +16,9 @@ import glob
 
 
 
-################################################
-#
-# MY VARIABLE FORMAT
-#
-################################################
+# =============================================================================
+# MY VARIABLE FORMAT 
+# =============================================================================
 
 myint    = np.int
 myfloat  = np.float32
@@ -29,33 +27,27 @@ myfloat2 = np.float64
 
 
 
-################################################
-#
-# CSV SEPARATOR
-#
-################################################
+# =============================================================================
+# CSV SEPARATOR 
+# =============================================================================
 
 SEP = ';'
 
 
 
 
-################################################
-#
-# ML ALGORITHM LIST
-#
-################################################
+# =============================================================================
+# ML ALGORITHM LIST 
+# =============================================================================
 
 ALGS = [ 'rf-class' , 'rf-regr' , 'xgboost-class' , 'xgboost-regr' ]
 
 
 
 
-################################################
-#
-# ALGORITHM PARAMETER LIST
-#
-################################################
+# =============================================================================
+# ALGORITHM PARAMETER LIST 
+# =============================================================================
 
 RF_PARAMS = [ 'n_estimators' , 'criterion' , 'max_depth' , 'min_samples_split' ,
               'min_samples_leaf' , 'bootstrap' , 'oob_score' , 'class_weights' ]
@@ -66,21 +58,17 @@ XG_PARAMS = [ 'booster' , 'num_feature' , 'eta' , 'gamma' , 'max_depth' ,
 
 
 
-################################################
-#
-# CLASS SYMBOLIC ML
-#
-################################################
+# =============================================================================
+# CLASS SYMBOLIC ML 
+# =============================================================================
 
 class SYML:
-    
-    ############################################
-    #
-    #  Init
-    #
-    ############################################
 
-    def init( self , file_in , file_cfg , label=None ):
+    # ===================================
+    # Init 
+    # ===================================
+    
+    def __init__( self , file_in , file_cfg , label=None ):
         # Assign to class
         self._file_in   = file_in
         self._file_cfg  = file_cfg
@@ -119,12 +107,10 @@ class SYML:
         self._create_param_grid()
 
 
-
-    ############################################
-    #
-    #  Read input table
-    #
-    ############################################
+    
+    # ===================================
+    # Read input table 
+    # ===================================
 
     def _read_input_table( self ):
         # Read table
@@ -137,13 +123,11 @@ class SYML:
                       ','.join( self._df.shape ) + ')!\n\n' )
 
 
-    
-    ############################################
-    #
-    #  Read config file
-    #
-    ############################################
 
+    # ===================================
+    # Read config file 
+    # ===================================
+    
     def _read_config_file( self ):
         # Read YAML config file
         with open( self._file_cfg , 'r' ) as stream:
@@ -167,7 +151,9 @@ class SYML:
         # Get type of task
         if '-class' in self._alg:
             self._task_type = 'classification'
-        elif '-regr' in self._alg
+        elif '-regr' in self._alg:
+            self._task_type = 'regression'
+
 
         # Get random forest parameters
         self._params = []
@@ -209,13 +195,11 @@ class SYML:
                           self._file_cfg + '!\n\n' ) 
    
 
-
-    ############################################
-    #
-    #  Parse argument from config file
-    #
-    ############################################
     
+    # ===================================
+    # Parse argument from config file 
+    # ===================================
+ 
     def _parse_arg( self , arg , arg_type='string' , var='variable' ):
         try:
             # Case "," is present
@@ -248,13 +232,11 @@ class SYML:
             sys.exit( '\nERROR ( SYML -- _parse_arg ): issue with ' + var + '!\n\n' )
 
 
-
-    ############################################
-    #
-    #  Get outcome variable
-    #
-    ############################################
-
+    
+    # ===================================
+    # Get outcome variable 
+    # ===================================
+ 
     def _get_outcome( self ):
         if self._col_out in self._df.keys():
             self._y = self._df[ self._col_out ].values
@@ -265,12 +247,10 @@ class SYML:
                       'Available Keys: (' + ','.join( self._df.keys() ) + ')\n\n' )    
 
        
-     
-    ############################################
-    #
-    #  Get feature variables
-    #
-    ############################################
+    
+    # ===================================
+    # Get feature variables 
+    # ===================================
 
     def _get_features( self ):
         # Initialize list of feature column names
@@ -332,13 +312,11 @@ class SYML:
                                   self._exclude[i] + ' is not in input data frame!\n'    + \
                                   'Available Keys: (' + ','.join( self._df.keys() ) + ')\n\n' )    
             
-        
 
-    ############################################
-    #
-    #  Check feature amd outcome variables
-    #
-    ############################################
+
+    # ===================================
+    # Check feature and outcome variables 
+    # ===================================
 
     def _check_vars( self ):
         # Outcome variable
@@ -357,22 +335,18 @@ class SYML:
 
        
 
-    ############################################
-    #
-    #  Convert non-numeric to 1-hot encoded
-    #
-    ############################################
-
+    # ===================================
+    # Slice data frame
+    # ===================================
+ 
     def _slice_data_frame( self ):
         self._df_enc = self._df[ self._feats + [ self._col_out ] ]
 
 
-
-    ############################################
-    #
-    #  Convert non-numeric to 1-hot encoded
-    #
-    ############################################
+    
+    # ===================================
+    # Convert non-numeric to 1-hot encoded
+    # ===================================
 
     def _1hot_encoding( self ):
         # Do 1-hot encoding
@@ -413,11 +387,9 @@ class SYML:
 
 
 
-    ############################################
-    #
-    #  Create output label
-    #
-    ############################################
+    # ===================================
+    # Create output label 
+    # ===================================
 
     def _create_output_label( self ):
         from time import gmtime, strftime
@@ -438,12 +410,10 @@ class SYML:
 
 
 
-    ############################################
-    #
-    #  Create param grid
-    #
-    ############################################
-
+    # ===================================
+    # Create param grid 
+    # ===================================
+ 
     def _create_param_grid( self ):
         import itertools
 
@@ -455,12 +425,10 @@ class SYML:
         
 
 
-    ############################################
-    #
-    #  Training
-    #
-    ############################################
-
+    # ===================================
+    # Training 
+    # ===================================
+ 
     def _train():
         # Split dataset
         self._split_data( save=True )
@@ -471,12 +439,10 @@ class SYML:
 
 
 
-    ############################################
-    #
-    # Split data
-    #
-    ############################################
-
+    # ===================================
+    # Split data 
+    # ===================================
+ 
     def _split_data( save=False ):
         from sklearn.model_selection import StratifiedKFold
 
@@ -594,23 +560,36 @@ class SYML:
                     df_aux.to_csv( fileout , sep=SEP , index=False )
 
 
-
-    ############################################
-    #
-    #  Run algorithm training
-    #
-    ############################################
+    
+    # ===================================
+    # Run algorihm training 
+    # ===================================
 
     def _run_train():
         # Initalize filenames for output files
         self._create_output_filenames()
 
 
+        # Initialize monitoring metric
+        self._init_monitor()
+
+
         # Load modules
         if self._alg == 'rf':
-            from sklearn.ensemble import RandomForestClassifier
+            if self._task_type == 'classification':
+                from sklearn.ensemble import RandomForestClassifier
+                Algorithm = RandomForestClassifier
+            elif self._task_type == 'regression':
+                from sklearn.ensemble import RandomForestRegressor
+                Algorithm = RandomForestRegressor
+
         elif self._alg == 'xg_boost':
-            from xgboost import XGBClassifier
+            if self._task_type == 'classification':
+                from xgboost import XGBClassifier
+                Algorithm = XGBClassifier
+            elif self._task_type == 'regression':
+                from xgboost import XGBRegressor
+                Algorithm = XGBRegressor
 
 
         # For loop of param grid search
@@ -629,28 +608,17 @@ class SYML:
  
                 
                 # Initialize algorithm
-                if self._alg == 'rf':
-                    clf = RandomForestClassifier( n_estimators      = self._param_combs[i][0] , 
-                                                  criterion         = self._param_combs[i][1] ,
-                                                  max_depth         = self._param_combs[i][2] ,
-                                                  min_samples_split = self._param_combs[i][3] ,     
-                                                  min_samples_leaf  = self._param_combs[i][4] ,
-                                                  bootstrap         = self._param_combs[i][5] , 
-                                                  oob_score         = self._param_combs[i][6] ,
-                                                  class_weights     = self._param_combs[i][7] )
+                clf = Algorithm( n_estimators      = self._param_combs[i][0] , 
+                                 criterion         = self._param_combs[i][1] ,
+                                 max_depth         = self._param_combs[i][2] ,
+                                 min_samples_split = self._param_combs[i][3] ,     
+                                 min_samples_leaf  = self._param_combs[i][4] ,
+                                 bootstrap         = self._param_combs[i][5] , 
+                                 oob_score         = self._param_combs[i][6] ,
+                                 class_weights     = self._param_combs[i][7] )
 
-                elif self._alg == 'xg_boost':
-                    clf =  XGBClassifier( booster     = self._param_combs[i][0] , 
-                                          num_feature = self._param_combs[i][1] ,
-                                          eta         = self._param_combs[i][2] ,
-                                          gamma       = self._param_combs[i][3] ,     
-                                          max_depth   = self._param_combs[i][4] ,
-                                          lambda      = self._param_combs[i][5] , 
-                                          alpha       = self._param_combs[i][6] ,
-                                          tree_method = self._param_combs[i][7] )
 
-            
-                # Fit data
+                # Fit algorithm to training data
                 clf.fit( x_train , y_train )
 
 
@@ -676,12 +644,10 @@ class SYML:
 
 
 
-    ############################################
-    #
-    #  Create output filenames
-    #
-    ############################################
-
+    # ===================================
+    # Create output filenames 
+    # ===================================
+ 
     def _create_output_filenames( self ):
         # CSV logger
         self._csv_logger = os.path.join( self._path_out , 'syml_logger_' + self._label_out + '.csv' )
@@ -693,13 +659,181 @@ class SYML:
         self._file_preds = os.path.join( self._path_out , 'syml_test_preds_' + self._label_out + '.json' )
         
     
+    
+    # ===================================
+    # Initializing monitoring metric.
+    # ===================================
 
-    ############################################
-    #
-    #  Compute testing metrics
-    #
-    ############################################
+    def _init_monitor( self ):
+        if self._metric == 'val_mse':
+            self._metric_monitor = 1e10
+        else:
+            self._metric_monitor = 0
 
-    def _compute_testing_metrics( self , y_true , y_prob ):
-        if hasattr( self , '_ ):        
+
+   
+    # ===================================
+    # Compute metrics
+    # ===================================
+    
+    def _compute_metrics( self , y_true , y_prob ):
+        # Case --> Classification
+            # Transform probabilities in 1-class prediction
+            y_class = y_prob.argmax( axis=1 ).astype( myint )
+
+
+            # Compute metrics for 2-class problem
+            if self._num_classes == 2:
+                if len( np.unique( y_class ) ) == 1:
+                    self._accuracy    = self._precision   = self._recall    = \
+                    self._f1score     = self._cohen_kappa = self._auc       = \
+                    self._sensitivity = self._specificity = self._threshold = 0.0
+                
+                else:
+                    self._accuracy    = accuracy_score( y_true , y_class )
+                    self._precision   = precision_score( y_true , y_class )
+                    self._recall      = recall_score( y_true , y_class )
+                    self._f1score     = f1_score( y_true , y_class )
+                    self._cohen_kappa = cohen_kappa_score( y_true , y_class )
+                    fpr , tpr , thres = roc_curve( y_true , y_prob[:,1] )
+                    self._auc         = auc( fpr , tpr )
+                    self._calc_sens_and_spec( tpr , fpr , thres )
+            
+                print( '\rval_accuracy: %s - val_precision: %s - val_recall: %s - val_f1score: %s - val_cohen_kappa: %s' % \
+                    ( self._num2str( self._accuracy ) , self._num2str( self._precision ) ,
+                      self._num2str( self._recall ) , self._num2str( self._f1score ) , 
+                      self._num2str( self._cohen_kappa ) ) )
+                print( '\rval_auc: %s - val_sensitivity( %s ): % s - val_specificity( %s ): %s' % \
+                    ( self._num2str( self._auc ) , self._num2str( self._threshold ) , 
+                      self._num2str( self._sensitivity ) , self._num2str( self._threshold ) , 
+                      self._num2str( self._specificity ) ) )
+        
+            else:
+                self._accuracy    = accuracy_score( y_true , y_class )
+                self._cohen_kappa = cohen_kappa_score( y_true , y_class )
+                print( '\rval_accuracy: %s - val_cohen_kappa: %s ' % \
+                       ( self._num2str( self._accuracy ) , self._num2str( self._cohen_kappa ) ) )    
+    
+
+        # Case --> Regression
+    
+    
+    # ===================================
+    # Calculate sensitivity and specificity
+    # using Youden's operating point
+    # ===================================
+        
+    def _calc_sens_and_spec( self , tpr , fpr  , thres ):
+        # Compute best operating point on ROC curve, define as 
+        # the one maximizing the difference ( TPR - FPR ), also
+        # known as Youden's operating point
+        diff             = tpr - fpr
+        i_max            = np.argwhere( diff == np.max( diff ) )
+        self._threshold  = thres[ i_max ][0]
+        fpr_best         = fpr[i_max]
+        tpr_best         = tpr[i_max]
+        
+        
+        # Compute sensitivity and specificity at optimal operating point
+        self._sensitivity = tpr[ i_max ][0]
+        self._specificity = 1 - fpr[ i_max ][0]
+        
+        
+        
+    # ===================================
+    # Save best model according to a selected metric
+    # ===================================
+    
+    def _save_best_model( self ):
+        if self._metric is not None:
+            if self._metric == 'accuracy':
+                if self._accuracy > self._metric_monitor:
+                    self._metric_monitor = self._accuracy
+                    self.model.save( self._file_best_model )
+                    print( 'val_accuracy has improved: saving best model to ' , self._file_best_model )            
+        
+            if self._metric == 'precision':
+                if self._precision > self._metric_monitor:
+                    self._metric_monitor = self._precision
+                    self.model.save( self._file_best_model )
+                    print( 'val_precision has improved: saving best model to ' , self._file_best_model )
+                    
+            elif self._metric == 'recall':
+                if self._recall > self._metric_monitor:
+                    self._metric_monitor = self._recall
+                    self.model.save( self._file_best_model )
+                    print( 'val_recall has improved: saving best model to ' , self._file_best_model )
+                    
+            elif self._metric == 'f1score':
+                if self._f1score > self._metric_monitor:
+                    self._metric_monitor = self._f1score
+                    self.model.save( self._file_best_model )
+                    print( 'val_f1score has improved: saving best model to ' , self._file_best_model )                    
+
+            elif self._metric == 'auc':
+                if self._auc > self._metric_monitor:
+                    self._metric_monitor = self._auc
+                    self.model.save( self._file_best_model )
+                    print( 'val_auc has improved: saving best model to ' , self._file_best_model )
+                    
+            elif self._metric == 'sensitivity':
+                if self._sensitivity > self._metric_monitor:
+                    self._metric_monitor = self._sensitivity
+                    self.model.save( self._file_best_model )
+                    print( 'val_sensitivity has improved: saving best model to ' , self._file_best_model )
+
+            elif self._metric == 'specificity':
+                if self._specificity > self._metric_monitor:
+                    self._metric_monitor = self._specificity
+                    self.model.save( self._file_best_model )
+                    print( 'val_specificity has improved: saving best model to ' , self._file_best_model )                    
+        
+            elif self._metric == 'cohen_kappa':
+                if self._cohen_kappa > self._metric_monitor:
+                    self._metric_monitor = self._cohen_kappa
+                    self.model.save( self._file_best_model )
+                    print( 'val_cohen_kappa has improved: saving best model to ' , self._file_best_model )        
+    
+    
+    
+    # ===================================
+    # Print number as string with a certain precision 
+    # ===================================
+    
+    def _num2str( self , num ):
+        return str( round( num , 4 ) )
+
+
+    
+    # ===================================
+    # Update logger
+    # ===================================
+    
+    def _update_logger( self , epoch ):    
+        # Distinguish between case with 2 classes and > 2 classes        
+        if self._num_classes == 2:
+            df = pd.DataFrame( { 'val_accuracy'   : self._accuracy    ,
+                                 'val_precision'  : self._precision   ,
+                                 'val_recall'     : self._recall      , 
+                                 'val_f1score'    : self._f1score     , 
+                                 'val_auc'        : self._auc         ,
+                                 'val_sensitivity': self._sensitivity ,
+                                 'val_specificity': self._specificity ,
+                                 'val_cohen_kappa': self._cohen_kappa ,
+                                 'threshold'      : self._threshold   ,
+                                 'phase'          : self._phase       } , index=[epoch] )
+                                 
+        else:
+            df = pd.DataFrame( { 'val_accuracy'   : self._accuracy ,
+                                 'val_cohen_kappa': self._cohen_kappa } , index=[epoch] )
+            
+        
+        # Write to CSV file
+        if os.path.isfile( self._file_metric_logger ):
+            df.to_csv( self._file_metric_logger , mode='a' , 
+                       header=False , sep=SEP , index=False )
+        else:
+            df.to_csv( self._file_metric_logger , 
+                       sep=SEP , index=False )
+
 

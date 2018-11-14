@@ -10,16 +10,14 @@ SYMBOLIC MODELING TRAINING
 from __future__ import division , print_function
 import argparse
 import time
-from sym_class import SYML
+from syml_class import SYML
 
 
 
 
- ################################################
- #
- # GET INPUT ARGUMENTS
- #
- ################################################
+# =============================================================================
+# Get input arguments 
+# =============================================================================
 
 def _example():
     print( '\n\nTrain model given a CSV table and a YAML config file:\n' )
@@ -76,11 +74,9 @@ def _get_args():
 
 
 
- ################################################
- #
- # MAIN
- #
- ################################################
+# =============================================================================
+# MAIN 
+# =============================================================================
 
 def main():
     # Initial print
@@ -110,6 +106,7 @@ def main():
     print( 'Additional label: ', syml._add_label )
     
     print( '\nMODEL' )
+    print( 'Type of task: ', syml._task_type )
     print( 'Algorithm: ', syml._alg )
     print( 'Metric: ', syml._metric )
     print( 'Output variable: ', syml._col_out )
@@ -154,11 +151,9 @@ def main():
 
 
 
- ################################################
- #
- # CALL TO MAIN
- #
- ################################################
+# =============================================================================
+# CALL to MAIN 
+# =============================================================================
 
 if __name__ == '__main__':
     main()
