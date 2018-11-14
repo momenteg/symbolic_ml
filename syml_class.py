@@ -1020,15 +1020,15 @@ class SYML:
         elif self._task_type == 'regression':
                 aux = pd.DataFrame( { 'test_mse'   : self._mse  ,
                                       'test_r2'    : self._r2 } , index=[0] )
-    
-        df.update( aux )
+   
+        df = pd.concat( [ df , aux ] , axis=1 )
 
 
         # Add parameters of the grid point
         for i in range( len( df_params.keys() ) ):
             df[ df_params.keys()[i] ] = df_params[ df_params.keys()[i] ] 
  
-            
+
         # Write to CSV file
         if os.path.isfile( self._file_logger ):
             df.to_csv( self._file_logger , mode='a' , 
