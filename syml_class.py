@@ -748,8 +748,7 @@ class SYML:
             elif self._task_type == 'regression':
                 from sklearn.ensemble import RandomForestRegressor
                 Algorithm = RandomForestRegressor
-
-            kwargs = pd.DataFrame( columns = RF_PARAMS )
+            PARAMS = RF_PARAMS
 
         elif 'xg_boost' in self._alg:
             if self._task_type == 'classification':
@@ -758,8 +757,7 @@ class SYML:
             elif self._task_type == 'regression':
                 from xgboost import XGBRegressor
                 Algorithm = XGBRegressor
-
-            kwargs = pd.DataFrame( columns = XG_PARAMS )
+            PARAMS = XG_PARAMS
 
 
         # For loop of param grid search
@@ -786,18 +784,10 @@ class SYML:
 
                 
                 # Get grid point parameters
-                row = []
-                for param in self._param_combs[i]:
-                    row.append( param )
-                    
-                #kwargs.loc[0] = row
+                kwargs    = {}
 
-                kwargs    = dict( { 'n_estimators':2 , 'criterion': 'gini'} )
-                kwargs_pd =  pd.DataFrame( kwargs.items() )
-                #print( kwargs_pd )
-                #print( type( kwargs_pd ) )
-                #row = [ 2 , 'gini' ]
-                #kwargs.loc[0] = row
+                for k in range( len( PARAMS ) ):
+                    kwargs[ PARAMS[k] ] = self._param_combs[i][k]
                 
                 if self._verbose:
                     print( '\t\t.... using kwargs: \n', kwargs )
