@@ -285,7 +285,14 @@ class SYML:
     def _get_outcome( self ):
         if self._col_out in self._df.keys():
             self._y = self._df[ self._col_out ].values
+            
+            if self._task_type == 'classification':
+                self._n_classes = len( np.unique( self._y ) )
 
+                if self._n_classes > 2:
+                    sys.exit( '\nERROR ( SYML -- _get_outcome ): outcome column ' + \
+                                self._col_out + ' contains more than 2 classes, impossible to do classification!\n\n' )
+            
         else:
             sys.exit( '\nERROR ( SYML -- _get_outcome ): outcome column ' + \
                       self._col_out + ' is not in input data frame!\n'    + \
@@ -404,9 +411,11 @@ class SYML:
                 keys_str.append( keys[i] )    
 
         if len( keys_str ):
-            self._dl_enc = pd.get_dummies( self._df , columns=keys_str )
+            self._df_enc   = pd.get_dummies( self._df , columns=keys_str )
+            self._keys_enc = keys_str 
         else:
-            self._dl_enc = self._df
+            self._df_enc   = self._df
+            self._keys_enc = keys_str
 
 
         # Do label encoding
@@ -414,14 +423,19 @@ class SYML:
             from sklearn import preprocessing
                 
             label_enc = preprocessing.LabelEncoding()           
-            arr       = self._dl_enc[ self._col_out ].values
+            arr       = self._df_enc[ self._col_out ].values
             
             label_enc.fit( arr )
             
             arr                           = label_enc.transform( arr )
-            self._dl_enc[ self._col_out ] = arr
-             
-  
+            self._df_enc[ self._col_out ] = arr
+            
+            if self._keys_enc is None:
+                self._keys_enc = [ self._col_out ]
+            else:
+                self._keys_enc += [ self._col_out ]
+            
+
 
     def _is_numeric( self , key ):
         if self._df[ key ].dtype == myint or \
@@ -473,10 +487,12 @@ class SYML:
 
     def _train( self ):
         # Split dataset
+        print( '\nSplitting input data frame ....' )
         self._split_data( save=True )
 
 
         # Run training 
+        print( '\nTraining model ....' )
         self._run_train()
 
 
@@ -500,6 +516,10 @@ class SYML:
             inds  = np.arange( len( inds_un ) )
             y     = self._df[ self._col_out ].values
             y_sel = y[ inds_un ]
+
+        print( 'len(  constr ): ', len( constr ) )
+        print( 'len( y_sel ): ', len( y_sel ) )
+        print( 'len( inds ): ', len( inds ) )
 
 
         # Get number of labels
@@ -565,7 +585,7 @@ class SYML:
 
 
         # Split data frame
-        self._df_train = [];  self._df_test = [];  self._nsplit = 0
+        self._df_train = [];  self._df_test = [];  self._n_split = 0
     
         for i in range( len( inds_real_train ) ):
             self._df_train.append( self._df_enc.iloc[ inds_real_train[i] ] )
@@ -746,7 +766,7 @@ class SYML:
 
 
             # Compute metrics for 2-class problem
-            if self._num_classes == 2:
+            if self._n_classes == 2:
                 if len( np.unique( y_class ) ) == 1:
                     self._accuracy    = self._precision   = self._recall    = \
                     self._f1score     = self._cohen_kappa = self._auc       = \
@@ -922,7 +942,7 @@ class SYML:
 
         # Distinguish the various cases        
         if self._task_type == 'classification':
-            if self._num_classes == 2:
+            if self._n_classes == 2:
                 aux = pd.DataFrame( { 'test_accuracy'   : self._accuracy    ,
                                       'test_precision'  : self._precision   ,
                                       'test_recall'     : self._recall      , 

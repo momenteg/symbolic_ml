@@ -8,8 +8,11 @@ SYMBOLIC MODELING TRAINING
  
  
 from __future__ import division , print_function
+import sys , os
 import argparse
 import time
+
+
 from syml_class import SYML
 
 
@@ -52,6 +55,7 @@ def _get_args():
     if args.help:
         parser.print_help()
         _example()
+        sys.exit()
 
     if args.file_in is None:
         parser.print_help()
@@ -75,22 +79,20 @@ def _get_args():
 
 
 # =============================================================================
-<<<<<<< HEAD
 # MAIN 
-=======
-# Main 
->>>>>>> e9b63b955f2645d73505f0751e1da91c88aa00ac
 # =============================================================================
 
 def main():
     # Initial print
     time1 = time.time()
     
+    print( '\n\n' )
     print( '#########################################' )
     print( '#                                       #' )
     print( '#        TRAIN SYMBOLIC ML MODEL        #' )
     print( '#                                       #' )
     print( '#########################################' )
+    print( '\n' )
 
 
     # Get input arguments
@@ -106,6 +108,7 @@ def main():
     # Check prints
     print( '\nINPUTS' )
     print( 'CSV data file: ', syml._file_in )
+    print( 'Shape of input data frame: ', syml._df.shape )
     print( 'YAML config file: ', syml._file_cfg )
     print( 'Additional label: ', syml._add_label )
     
@@ -113,21 +116,37 @@ def main():
     print( 'Type of task: ', syml._task_type )
     print( 'Algorithm: ', syml._alg )
     print( 'Metric: ', syml._metric )
+
+    print( '\nFEATURES' )
     print( 'Output variable: ', syml._col_out )
-    print( 'Selected features: ', syml._select )
-    print( 'Excluded features: ', syml._exclude )
+    
+    if syml._select is not None:
+        print( 'Feature selection: ', syml._select )
+
+    if syml._exclude is not None:
+        print( 'Feature exclusion: ', syml._exclude )
+
+    print( 'Number of features for modeling: ', len( syml._feats ) )
+    print( 'Name of features for modeling:\n' , syml._feats )
 
     print( '\nVALIDATION' )
-    print( 'Hold-out: ', syml._hold_out )
     print( 'Constrained feature for splitting: ', syml._col_constr )
-    print( 'K-fold cross-validation: ', syml._kfold_cv )
     
-    if syml._kfold_cv:
+    if syml._kfold_cv: 
+        print( 'K-fold cross-validation: ', syml._kfold_cv )
         print( 'No. folds for cross-validation: ', syml._kfold_cv )
+    else:
+        print( 'Percentage of data for testing: ', syml._test_perc )
+    
+    print( 'Label for output files: ', syml._label_out )
 
-    print( '\nLabel for output files: ', syml._label_out )
-    print( '\nNumber of parameter grid points: ', len( syml._param_combs ) ) 
+    print( '\nPARAMETER GRID' )
+    print( 'Number of parameter grid points: ', len( syml._param_combs ) ) 
 
+    if syml._keys_enc is not None:
+        print( '\nENCODING' )
+        print( 'One-hot encoding applied to the columns:\n', syml._keys_enc )
+        print( 'Shape of encoded data frame: ', syml._df_enc.shape )
 
     # Check feature and outcome variables
     if args.print_vars:
@@ -136,9 +155,7 @@ def main():
 
 
     # Training
-    print( '\n\nStarting training ....' )
     syml._train()
-    print( '.... done!' )
 
 
     # Write outputs
@@ -156,11 +173,7 @@ def main():
 
 
 # =============================================================================
-<<<<<<< HEAD
 # CALL to MAIN 
-=======
-# CALL TO MAIN
->>>>>>> e9b63b955f2645d73505f0751e1da91c88aa00ac
 # =============================================================================
 
 if __name__ == '__main__':
