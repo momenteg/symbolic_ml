@@ -825,7 +825,7 @@ class SYML:
             
             
             # Save update logger
-            self._update_logger( kwargs , n_grid=i , save=save )
+            self._update_logger( metrics , kwargs , n_grid=i , save=save )
 
 
             if save:
@@ -991,37 +991,17 @@ class SYML:
     # Update logger
     # ===================================
     
-    def _update_logger( self , df_params , n_grid=0 , save=False ):
+    def _update_logger( self , metrics , df_params , n_grid=0 , save=False ):
         # Common data frame
-        df = pd.DataFrame( { 'hash'      : self._label_out   ,
-                             'task'      : self._task_type   ,
-                             'n_grid'    : n_grid            ,
-                             'n_splits'  : self._n_splits    ,
-                             'save_model': save              } , index=[0] )
+        metrics = np.array( metrics ).astype( str ).tolist()
 
-
-        # Distinguish the various cases        
-        if self._task_type == 'classification':
-            if self._n_classes == 2:
-                aux = pd.DataFrame( { 'test_accuracy'   : self._accuracy    ,
-                                      'test_precision'  : self._precision   ,
-                                      'test_recall'     : self._recall      , 
-                                      'test_f1score'    : self._f1score     , 
-                                      'test_auc'        : self._auc         ,
-                                      'test_sensitivity': self._sensitivity ,
-                                      'test_specificity': self._specificity ,
-                                      'test_cohen_kappa': self._cohen_kappa ,
-                                      'threshold'       : self._threshold } , index=[0] )
-                                 
-            else:
-                aux = pd.DataFrame( { 'test_accuracy'   : self._accuracy ,
-                                      'test_cohen_kappa': self._cohen_kappa }  , index=[0] )
-
-        elif self._task_type == 'regression':
-                aux = pd.DataFrame( { 'test_mse'   : self._mse  ,
-                                      'test_r2'    : self._r2 } , index=[0] )
-   
-        df = pd.concat( [ df , aux ] , axis=1 )
+        df = pd.DataFrame( { 'hash'                           : self._label_out     ,
+                             'task'                           : self._task_type     ,
+                             'n_grid'                         : n_grid              ,
+                             'n_splits'                       : self._n_splits      ,
+                             'save_model'                     : save                , 
+                             'test' + self._metric + '_single': ','.join( metrics ) ,
+                             'test_' + self._metric + '_mean' : self._metric_monitor } , index=[0] )
 
 
         # Add parameters of the grid point
