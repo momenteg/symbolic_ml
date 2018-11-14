@@ -44,6 +44,9 @@ def _get_args():
     parser.add_argument('-l', '--label', dest='label',
                         help='Specify additional label for outputs' )
 
+    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
+                        help='Enable verbose mode' )
+    
     parser.add_argument('-p', '--print_vars', dest='print_vars', action='store_true',
                         help='Print names and unique values of features and outcome variables' )
 
@@ -100,9 +103,11 @@ def main():
 
 
     # Initialize SYML class
-    syml = SYML( args.file_in  ,
-                 args.file_cfg , 
-                 label = args.label )
+    syml = SYML( args.file_in             ,
+                 args.file_cfg            ,
+                 path_out = args.path_out ,
+                 label    = args.label    , 
+                 verbose  = args.verbose  )
 
 
     # Check prints
@@ -124,7 +129,7 @@ def main():
         print( 'Feature selection: ', syml._select )
 
     if syml._exclude is not None:
-        print( 'Feature exclusion: ', syml._exclude )
+        print( 'Excluded features: ', syml._exclude_feats )
 
     print( 'Number of features for modeling: ', len( syml._feats ) )
     print( 'Name of features for modeling:\n' , syml._feats )
@@ -132,22 +137,26 @@ def main():
     print( '\nVALIDATION' )
     print( 'Constrained feature for splitting: ', syml._col_constr )
     
-    if syml._kfold_cv: 
-        print( 'K-fold cross-validation: ', syml._kfold_cv )
-        print( 'No. folds for cross-validation: ', syml._kfold_cv )
-    else:
+    if syml._cv_type == 'k-fold': 
+        print( 'K-fold cross-validation' )
+        print( 'No. folds for cross-validation: ', syml._n_splits )
+    elif syml._cv_type == 'resampling':
+        print( 'Random re-sampling cross-validation' )
         print( 'Percentage of data for testing: ', syml._test_perc )
+        print( 'No. splits for cross-validation: ', syml._n_splits )
     
     print( 'Label for output files: ', syml._label_out )
 
     print( '\nPARAMETER GRID' )
-    print( 'Number of parameter grid points: ', len( syml._param_combs ) ) 
+    print( 'Number of parameter grid points: ', len( syml._param_combs ) )
+    print( 'Input parameters: ', syml._params )
 
     if syml._keys_enc is not None:
         print( '\nENCODING' )
         print( 'One-hot encoding applied to the columns:\n', syml._keys_enc )
         print( 'Shape of encoded data frame: ', syml._df_enc.shape )
 
+    
     # Check feature and outcome variables
     if args.print_vars:
         print( '\n\nChecking feature and outcome variables ....' )
@@ -156,12 +165,6 @@ def main():
 
     # Training
     syml._train()
-
-
-    # Write outputs
-    print( '\n\nSaving outputs ....' )
-    syml._save()
-    print( '.... done!' )
 
 
     # Elapsed time

@@ -21,15 +21,17 @@ model:
     metric: auc
 
     # Output variable
-    col_out: NUMEX
+    col_out: NUMEX-BINARY
 
-    # Feature columns to select, if "*" is present, the string is used to identify all column
-    # names containing it
+    # Feature columns to select
+    # Provide the column names individually as a list, e.g. [ 'col_name_01' , 'col_name_02' ]
+    # or specify a substring common to all column names to select, e.g. '*pattern*''
     select: None
 
-    # Feature columns to exclude, if "*" is present, the string is used to identify all column
-    # names containing it
-    exclude: None
+    # Feature columns to exclude
+    # Provide the column names individually as a list, e.g. [ 'col_name_01' , 'col_name_02' ]
+    # or specify a substring common to all column names to exclude, e.g. '*pattern*'
+    exclude: ['NUMEX']
 
 
 
@@ -46,8 +48,8 @@ validation:
     # Name of the column constraining the fold splitting
     col_constr: ANONID
 
-    # Enable K-fold CV
-    kfold_cv: True
+    # Select type of cross-validation, choose among [ None , k-fold , resampling ]
+    cv_type: k-fold
 
     # How many folds
     n_folds: 5
@@ -65,7 +67,7 @@ rf_params:
     n_estimators: '2:40:5'
 
     # Criterion to measure the quality of the split, choose between [ 'entropy' , 'gini' ]
-    criterion: [ 'entropy' , 'gini' ]
+    criterion: 'entropy,gini'
 
     # Max depth of a tree
     max_depth: '4:20:4'
@@ -83,7 +85,7 @@ rf_params:
     oob_score: True
 
     # Class weights
-    class_weights: 'balanced'
+    class_weight: 'balanced'
 
 
 

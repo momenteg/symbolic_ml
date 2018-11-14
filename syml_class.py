@@ -377,6 +377,12 @@ class SYML:
 
 
         # Exclude columns
+        self._exclude_feats = []
+
+        if self._col_constr is not None:
+            self._feats.remove( self._col_constr ) 
+            self._exclude_feats.append( self._col_constr )
+
         if self._exclude is not None:
             if '*' in self._exclude:
                 exclude = self._exclude.strip( '*' )
@@ -384,6 +390,7 @@ class SYML:
                 for i in range( len( self._feats ) ):
                     if exclude in self._feats[i]:
                         self._feats.remove( self._feats[i] )
+                        self._exclude_feats.append( self._feats[i] )
                 
                 if len( self._feats ) == 0:
                     sys.exit( '\nERROR ( SYML -- _get_features ): no feature columns ' + \
@@ -394,6 +401,7 @@ class SYML:
                 for i in range( len( self._exclude ) ):
                     if self._exclude[i] in self._df.keys():
                         self._feats.remove( self._exclude[i] )
+                        self._exclude_feats.append( self._exclude[i] )
                     else:
                         sys.exit( '\nERROR ( SYML -- _get_features ): feature columns ' + \
                                   self._exclude[i] + ' is not in input data frame!\n'    + \
@@ -427,8 +435,10 @@ class SYML:
     # ===========================================
 
     def _slice_data_frame( self ):
-        self._df_enc = self._df[ self._feats + [ self._col_out ] ]
-
+        if self._col_constr is None:
+            self._df_enc = self._df[ self._feats + [ self._col_out ] ]
+        else:
+            self._df_enc = self._df[ self._feats + [ self._col_constr ] + [ self._col_out ] ]
 
 
     # ===========================================
@@ -476,8 +486,10 @@ class SYML:
             self._key_enc_feat = self._df_enc.keys().tolist()
             self._key_enc_feat.remove( self._col_out )
 
-            if self._col_constr is not None:
-                self._key_enc_feat.remove( self._col_constr )
+            print( self._exclude_feats )
+            if len( self._exclude_feats ):
+                for feat in self._exclude_feats:
+                    self._key_enc_feat.remove( feat )
 
         else:
             self._key_enc_feat = self._feats[:]
@@ -752,7 +764,7 @@ class SYML:
 
         # For loop of param grid search
         for i in range( len( self._param_combs ) ):
-            print( '\t.... training at grid point n.', i,' out of ', len( self._param_combs ) )
+            print( '\n\t.... training at grid point n.', i,' out of ', len( self._param_combs ) )
            
             # Initialize list of metrics and probabilities
             metrics = [];  trues = [];  probs = []
@@ -760,9 +772,9 @@ class SYML:
             # For loop on k-fold for cross-validation
             for j in range( self._n_splits ):
                 if self._cv_type == 'k-fold':
-                    print( '\t\t.... using fold n.', j )
+                    print( '\n\t\t.... training on fold n.', j )
                 elif self._cv_type == 'resampling':
-                    print( '\t\t.... using split n.', j )
+                    print( '\n\t\t.... training split n.', j )
 
                 # Get training data
                 x_train = self._df_train[ j ][ self._key_enc_feat ].values.astype( myfloat )
@@ -780,7 +792,10 @@ class SYML:
                     
                 #kwargs.loc[0] = row
 
-                kwargs = dict( { 'n_estimators':2 , 'criterion': 'gini'} ) 
+                kwargs    = dict( { 'n_estimators':2 , 'criterion': 'gini'} )
+                kwargs_pd =  pd.DataFrame( kwargs.items() )
+                #print( kwargs_pd )
+                #print( type( kwargs_pd ) )
                 #row = [ 2 , 'gini' ]
                 #kwargs.loc[0] = row
                 
@@ -812,6 +827,8 @@ class SYML:
 
             
             # --------- Outside the loop on data splits for cross-validation
+            
+            print( '' )
 
             # Evaluate metrics
             save = self._evaluate_metrics( metrics ) 
@@ -841,7 +858,7 @@ class SYML:
 
     def _create_output_filenames( self ):
         # CSV logger
-        self._csv_logger = os.path.join( self._path_out , 'syml_logger_' + self._label_out + '.csv' )
+        self._file_logger = os.path.join( self._path_out , 'syml_logger_' + self._label_out + '.csv' )
 
         # Model
         self._file_model = os.path.join( self._path_out , 'syml_model_' + self._label_out + '.pkl' )
@@ -899,11 +916,11 @@ class SYML:
                     self._auc         = auc( fpr , tpr )
                     self._calc_sens_and_spec( tpr , fpr , thres )
             
-                print( '\t\taccuracy: %s - precision: %s - recall: %s - f1score: %s - cohen_kappa: %s' % \
+                print( '\t\t\taccuracy: %s - precision: %s - recall: %s - f1score: %s - cohen_kappa: %s' % \
                     ( self._num2str( self._accuracy ) , self._num2str( self._precision ) ,
                       self._num2str( self._recall ) , self._num2str( self._f1score ) , 
                       self._num2str( self._cohen_kappa ) ) )
-                print( '\t\tauc: %s - sensitivity( %s ): % s - specificity( %s ): %s' % \
+                print( '\t\t\tauc: %s - sensitivity( %s ): % s - specificity( %s ): %s' % \
                     ( self._num2str( self._auc ) , self._num2str( self._threshold ) , 
                       self._num2str( self._sensitivity ) , self._num2str( self._threshold ) , 
                       self._num2str( self._specificity ) ) )
@@ -911,7 +928,7 @@ class SYML:
             else:
                 self._accuracy    = accuracy_score( y_true , y_class )
                 self._cohen_kappa = cohen_kappa_score( y_true , y_class )
-                print( '\t\taccuracy: %s - cohen_kappa: %s ' % \
+                print( '\t\t\taccuracy: %s - cohen_kappa: %s ' % \
                        ( self._num2str( self._accuracy ) , self._num2str( self._cohen_kappa ) ) )    
     
 
@@ -919,7 +936,7 @@ class SYML:
         elif self._task_type == 'regression':
             self._mse = mean_squared_error( y_true , y_prob )
             self._r2  = r2_score( y_true , y_pred )
-            print( '\t\tmse: %s - r_squared: %s ' % \
+            print( '\t\t\tmse: %s - r_squared: %s ' % \
                   ( self._num2str( self._accuracy ) , self._num2str( self._cohen_kappa ) ) ) 
 
         return getattr( self , '_' + self._metric )
@@ -963,14 +980,19 @@ class SYML:
                 print( '\t\t--------> Testing mean ', self._metric.upper() ,' has improved' )            
                 return True
             else:
+                print( '\t\t--------> Testing mean ', self._metric.upper() ,' has not improved,  mean: ', 
+                        mean, '  monitor: ', self._metric_monitor )            
                 return False
             
         else:
             if mean > self._metric_monitor:
+                print( '\t\t--------> Testing mean ', self._metric.upper() ,' has improved from ', 
+                            self._metric_monitor,' to ', mean )            
                 self._metric_monitor = mean
-                print( '\t\t--------> Testing mean ', self._metric.upper() ,' has improved' )            
                 return True
             else:
+                print( '\t\t--------> Testing mean ', self._metric.upper() ,' has not improved,  mean: ', 
+                        mean, '  monitor: ', self._metric_monitor )            
                 return False
 
  
@@ -985,8 +1007,7 @@ class SYML:
                              'task'      : self._task_type   ,
                              'n_grid'    : n_grid            ,
                              'n_splits'  : self._n_splits    ,
-                             'save_model': self._saved_model ,
-                             } )
+                             'save_model': save              } , index=[0] )
 
 
         # Distinguish the various cases        
@@ -1000,21 +1021,22 @@ class SYML:
                                       'test_sensitivity': self._sensitivity ,
                                       'test_specificity': self._specificity ,
                                       'test_cohen_kappa': self._cohen_kappa ,
-                                      'threshold'       : self._threshold } )
+                                      'threshold'       : self._threshold } , index=[0] )
                                  
             else:
                 aux = pd.DataFrame( { 'test_accuracy'   : self._accuracy ,
-                                     'test_cohen_kappa': self._cohen_kappa } )
+                                      'test_cohen_kappa': self._cohen_kappa }  , index=[0] )
 
         elif self._task_type == 'regression':
-                aux = pd.DataFrame( { 'test_mse'   : self._mse ,
-                                      'test_r2'    : self._r2 } )
+                aux = pd.DataFrame( { 'test_mse'   : self._mse  ,
+                                      'test_r2'    : self._r2 } , index=[0] )
     
         df.update( aux )
 
 
         # Add parameters of the grid point
-        df = pd.concat( [ df , df_params ] , axis=1 ) 
+        for i in range( len( df_params.keys() ) ):
+            df[ df_params.keys()[i] ] = df_params[ df_params.keys()[i] ] 
  
             
         # Write to CSV file
@@ -1025,7 +1047,7 @@ class SYML:
             df.to_csv( self._file_logger , 
                        sep=SEP , index=False )
 
-        print( '\t\tUpdated logger ', self._file_logger )
+        print( '\t\t--------> Updated logger ', self._file_logger )
 
     
     
@@ -1043,19 +1065,19 @@ class SYML:
     # Save best model according to a selected metric
     # ===================================
     
-    def _save_history( self , trues , probs ):  
-        df = pd.DataFrame( { 'y_true'      : trues            ,
-                             'y_prob'      : probs            ,
-                             'file_in'     : self._file_in    ,
-                             'task'        : self._task_type  ,
-                             'algorithm'   : self._alg        ,
-                             'feature_cols': self._feats      ,
-                             'outcome_col' : self._col_out    ,
-                             'constr_col'  : self._col_constr ,
-                             'metric'      : self._metric         ,
-                             'peak_value'  : self._metric_monitor } )
+    def _save_history( self , trues , probs ):
+        df = dict( { 'y_true'      : trues               ,
+                     'y_prob'      : probs               ,
+                     'file_in'     : self._file_in       ,
+                     'task'        : self._task_type     ,
+                     'algorithm'   : self._alg           ,
+                     'feature_cols': self._feats         ,
+                     'outcome_col' : self._col_out       ,
+                     'constr_col'  : self._col_constr    ,
+                     'metric'      : self._metric        ,
+                     'peak_value'  : self._metric_monitor } )
 
-        with open( self._file_preds , 'w' ) as fp:
+        with open( self._file_histo , 'w' ) as fp:
             json.dump( df , fp , sort_keys=True )
             
         print( '\t\t--------> Testing probabilities saved to ', self._file_histo )
@@ -1075,13 +1097,13 @@ class SYML:
     # Write config file
     # ===================================
     
-    def _save_config( kwargs ):
+    def _save_config( self , kwargs ):
         dict = { 'model': { 'algorithm': self._alg     ,
                             'metric'   : self._metric  ,
                             'col_out'  : self._col_out ,
-                            'select'   : select        ,
-                            'exclude'  : exclude       } ,
-                 'validation': { 'testing'   : self._perc_test  ,
+                            'select'   : self._select  ,
+                            'exclude'  : self._exclude } ,
+                 'validation': { 'testing'   : self._test_perc  ,
                                  'col_constr': self._col_constr , 
                                  'cv_type'   : self._cv_type    ,
                                  'n_folds'   : self._n_splits    } }
@@ -1093,7 +1115,7 @@ class SYML:
 
         dict.update( aux )
 
-        with open( fileout , 'w' ) as outfile:
+        with open( self._file_yaml , 'w' ) as outfile:
             yaml.dump( dict , outfile , default_flow_style=False )
         
-        print( '\t\t--------> Config file has been saved to ', self._file )     
+        print( '\t\t--------> Config file has been saved to ', self._file_yaml )     
