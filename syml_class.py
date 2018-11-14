@@ -13,6 +13,10 @@ import numpy as np
 import yaml , json
 import glob
 
+from sklearn.metrics import accuracy_score , precision_score , recall_score , r2_score , \
+                            f1_score , cohen_kappa_score , roc_curve , auc 
+from sklearn.externals import joblib            
+
 
 
 
@@ -30,9 +34,7 @@ myfloat2 = np.float64
 # =============================================================================
 # CSV SEPARATOR 
 # =============================================================================
-
-SEP = ';'
-
+SEP = ','
 
 
 
@@ -63,7 +65,7 @@ XG_PARAMS = [ 'booster' , 'num_feature' , 'eta' , 'gamma' , 'max_depth' ,
 # =============================================================================
 
 class SYML:
-
+    
     # ===================================
     # Init 
     # ===================================
@@ -107,11 +109,11 @@ class SYML:
         self._create_param_grid()
 
 
-    
-    # ===================================
-    # Read input table 
-    # ===================================
 
+    # ===========================================
+    # Read input table
+    # ===========================================
+    
     def _read_input_table( self ):
         # Read table
         self._df = pd.read_csv( self._file_in , sep=SEP )
@@ -232,11 +234,11 @@ class SYML:
             sys.exit( '\nERROR ( SYML -- _parse_arg ): issue with ' + var + '!\n\n' )
 
 
-    
-    # ===================================
+
+    # ===========================================
     # Get outcome variable 
-    # ===================================
- 
+    # ===========================================
+
     def _get_outcome( self ):
         if self._col_out in self._df.keys():
             self._y = self._df[ self._col_out ].values
@@ -248,9 +250,9 @@ class SYML:
 
        
     
-    # ===================================
-    # Get feature variables 
-    # ===================================
+    # ===========================================
+    # Get feature variables
+    # ===========================================   
 
     def _get_features( self ):
         # Initialize list of feature column names
@@ -311,12 +313,12 @@ class SYML:
                         sys.exit( '\nERROR ( SYML -- _get_features ): feature columns ' + \
                                   self._exclude[i] + ' is not in input data frame!\n'    + \
                                   'Available Keys: (' + ','.join( self._df.keys() ) + ')\n\n' )    
-            
+           
 
 
-    # ===================================
-    # Check feature and outcome variables 
-    # ===================================
+    # ===========================================
+    # Check feature and outcome variables
+    # ===========================================
 
     def _check_vars( self ):
         # Outcome variable
@@ -335,18 +337,18 @@ class SYML:
 
        
 
-    # ===================================
-    # Slice data frame
-    # ===================================
- 
+    # ===========================================
+    # Slicing data frame
+    # ===========================================
+
     def _slice_data_frame( self ):
         self._df_enc = self._df[ self._feats + [ self._col_out ] ]
 
 
-    
-    # ===================================
-    # Convert non-numeric to 1-hot encoded
-    # ===================================
+
+    # ===========================================
+    # Convert non-numeric to 1-hot
+    # ===========================================
 
     def _1hot_encoding( self ):
         # Do 1-hot encoding
@@ -387,9 +389,9 @@ class SYML:
 
 
 
-    # ===================================
-    # Create output label 
-    # ===================================
+    # ===========================================
+    # Create output label
+    # ===========================================
 
     def _create_output_label( self ):
         from time import gmtime, strftime
@@ -410,10 +412,10 @@ class SYML:
 
 
 
-    # ===================================
-    # Create param grid 
-    # ===================================
- 
+    # ===========================================
+    # Create param grid
+    # ===========================================
+
     def _create_param_grid( self ):
         import itertools
 
@@ -425,10 +427,10 @@ class SYML:
         
 
 
-    # ===================================
-    # Training 
-    # ===================================
- 
+    # ===========================================
+    # Training
+    # ===========================================
+
     def _train():
         # Split dataset
         self._split_data( save=True )
@@ -439,10 +441,10 @@ class SYML:
 
 
 
-    # ===================================
-    # Split data 
-    # ===================================
- 
+    # ===========================================
+    # Split data
+    # ===========================================
+
     def _split_data( save=False ):
         from sklearn.model_selection import StratifiedKFold
 
@@ -560,10 +562,10 @@ class SYML:
                     df_aux.to_csv( fileout , sep=SEP , index=False )
 
 
-    
-    # ===================================
-    # Run algorihm training 
-    # ===================================
+
+    # ===========================================
+    # Run algorithm training
+    # ===========================================
 
     def _run_train():
         # Initalize filenames for output files
@@ -575,7 +577,7 @@ class SYML:
 
 
         # Load modules
-        if self._alg == 'rf':
+        if 'rf' in self._alg:
             if self._task_type == 'classification':
                 from sklearn.ensemble import RandomForestClassifier
                 Algorithm = RandomForestClassifier
@@ -583,7 +585,9 @@ class SYML:
                 from sklearn.ensemble import RandomForestRegressor
                 Algorithm = RandomForestRegressor
 
-        elif self._alg == 'xg_boost':
+            kwargs = pd.DataFrame( columns = RF_PARAM_LIST }
+
+        elif 'xg_boost' in self._alg:
             if self._task_type == 'classification':
                 from xgboost import XGBClassifier
                 Algorithm = XGBClassifier
@@ -591,11 +595,12 @@ class SYML:
                 from xgboost import XGBRegressor
                 Algorithm = XGBRegressor
 
+            kwargs = pd.DataFrame( columns = XG_PARAM_LIST }
+
 
         # For loop of param grid search
         for i in range( len( self._param_combs ) ):
             print( '\t.... training at grid point n.', i,' out of ', len( self._param_combs ) )
-
             
             # For loop on k-fold for cross-validation
             for j in range( self._n_split ):
@@ -607,15 +612,16 @@ class SYML:
                 y_train = self._df_train[ j ][ self._col_out ].values
  
                 
+                # Get grid point parameters
+                row = []
+                for param in self._param_combs[i]:
+                    row.append( param )
+                    
+                kwargs.iloc[0] = row
+
+
                 # Initialize algorithm
-                clf = Algorithm( n_estimators      = self._param_combs[i][0] , 
-                                 criterion         = self._param_combs[i][1] ,
-                                 max_depth         = self._param_combs[i][2] ,
-                                 min_samples_split = self._param_combs[i][3] ,     
-                                 min_samples_leaf  = self._param_combs[i][4] ,
-                                 bootstrap         = self._param_combs[i][5] , 
-                                 oob_score         = self._param_combs[i][6] ,
-                                 class_weights     = self._param_combs[i][7] )
+                clf = Algorithm( **kwargs )
 
 
                 # Fit algorithm to training data
@@ -636,18 +642,22 @@ class SYML:
 
 
                 # Save model if selected metric has improved
-                self._save_model()
+                self._save_model( y_test , y_prob )
+
+
+                # Save config file
+                self._save_config( kwargs )
 
 
                 # Save update logger
-                self._update_logger( n_iter=i , n_fold=j )
+                self._update_logger( kwargs , n_grid=i , n_fold=j )
 
 
 
-    # ===================================
-    # Create output filenames 
-    # ===================================
- 
+    # ===========================================
+    # Create output filenames
+    # ===========================================
+
     def _create_output_filenames( self ):
         # CSV logger
         self._csv_logger = os.path.join( self._path_out , 'syml_logger_' + self._label_out + '.csv' )
@@ -658,6 +668,9 @@ class SYML:
         # Predictions on testing
         self._file_preds = os.path.join( self._path_out , 'syml_test_preds_' + self._label_out + '.json' )
         
+        # Predictions on testing
+        self._file_yaml = os.path.join( self._path_out , 'syml_config_' + self._label_out + '.yml' )
+        
     
     
     # ===================================
@@ -665,7 +678,7 @@ class SYML:
     # ===================================
 
     def _init_monitor( self ):
-        if self._metric == 'val_mse':
+        if self._metric == 'mse':
             self._metric_monitor = 1e10
         else:
             self._metric_monitor = 0
@@ -677,7 +690,13 @@ class SYML:
     # ===================================
     
     def _compute_metrics( self , y_true , y_prob ):
+        # Common print
+        print( '\t\tTesting metrics:' )
+
+        
         # Case --> Classification
+        if self._task_type == 'classification':
+
             # Transform probabilities in 1-class prediction
             y_class = y_prob.argmax( axis=1 ).astype( myint )
 
@@ -699,11 +718,11 @@ class SYML:
                     self._auc         = auc( fpr , tpr )
                     self._calc_sens_and_spec( tpr , fpr , thres )
             
-                print( '\rval_accuracy: %s - val_precision: %s - val_recall: %s - val_f1score: %s - val_cohen_kappa: %s' % \
+                print( '\t\taccuracy: %s - precision: %s - recall: %s - f1score: %s - cohen_kappa: %s' % \
                     ( self._num2str( self._accuracy ) , self._num2str( self._precision ) ,
                       self._num2str( self._recall ) , self._num2str( self._f1score ) , 
                       self._num2str( self._cohen_kappa ) ) )
-                print( '\rval_auc: %s - val_sensitivity( %s ): % s - val_specificity( %s ): %s' % \
+                print( '\t\tauc: %s - sensitivity( %s ): % s - specificity( %s ): %s' % \
                     ( self._num2str( self._auc ) , self._num2str( self._threshold ) , 
                       self._num2str( self._sensitivity ) , self._num2str( self._threshold ) , 
                       self._num2str( self._specificity ) ) )
@@ -711,13 +730,19 @@ class SYML:
             else:
                 self._accuracy    = accuracy_score( y_true , y_class )
                 self._cohen_kappa = cohen_kappa_score( y_true , y_class )
-                print( '\rval_accuracy: %s - val_cohen_kappa: %s ' % \
+                print( '\t\taccuracy: %s - cohen_kappa: %s ' % \
                        ( self._num2str( self._accuracy ) , self._num2str( self._cohen_kappa ) ) )    
     
 
         # Case --> Regression
-    
-    
+        elif self._task_type == 'regression':
+            self._mse = mean_squared_error( y_true , y_prob )
+            self._r2  = r2_score( y_true , y_pred )
+            print( '\t\tmse: %s - r_squared: %s ' % \
+                  ( self._num2str( self._accuracy ) , self._num2str( self._cohen_kappa ) ) 
+
+
+
     # ===================================
     # Calculate sensitivity and specificity
     # using Youden's operating point
@@ -744,56 +769,45 @@ class SYML:
     # Save best model according to a selected metric
     # ===================================
     
-    def _save_best_model( self ):
-        if self._metric is not None:
-            if self._metric == 'accuracy':
-                if self._accuracy > self._metric_monitor:
-                    self._metric_monitor = self._accuracy
-                    self.model.save( self._file_best_model )
-                    print( 'val_accuracy has improved: saving best model to ' , self._file_best_model )            
-        
-            if self._metric == 'precision':
-                if self._precision > self._metric_monitor:
-                    self._metric_monitor = self._precision
-                    self.model.save( self._file_best_model )
-                    print( 'val_precision has improved: saving best model to ' , self._file_best_model )
-                    
-            elif self._metric == 'recall':
-                if self._recall > self._metric_monitor:
-                    self._metric_monitor = self._recall
-                    self.model.save( self._file_best_model )
-                    print( 'val_recall has improved: saving best model to ' , self._file_best_model )
-                    
-            elif self._metric == 'f1score':
-                if self._f1score > self._metric_monitor:
-                    self._metric_monitor = self._f1score
-                    self.model.save( self._file_best_model )
-                    print( 'val_f1score has improved: saving best model to ' , self._file_best_model )                    
+    def _save_best_model( self , y_true , y_prob ):
+        # Case 1 --> model improvement corresponds to a metric decreasing in value
+        if self._metric == 'mse':
+            str_metric     = '_' + self._metric
+            metric_current = getattr( self , str_metric )  
+            
+            if metric_current < self._metric_monitor:
+                self._metric_monitor = metric_current
+                self._save_model     = True
+                joblib.dump( self._clf , self._file_model )
+                print( '\t\tTesting ', self._metric.upper() ,' has improved: saving best model to ' , self._file_model )            
+            else:
+                self._save_model = False
 
-            elif self._metric == 'auc':
-                if self._auc > self._metric_monitor:
-                    self._metric_monitor = self._auc
-                    self.model.save( self._file_best_model )
-                    print( 'val_auc has improved: saving best model to ' , self._file_best_model )
-                    
-            elif self._metric == 'sensitivity':
-                if self._sensitivity > self._metric_monitor:
-                    self._metric_monitor = self._sensitivity
-                    self.model.save( self._file_best_model )
-                    print( 'val_sensitivity has improved: saving best model to ' , self._file_best_model )
 
-            elif self._metric == 'specificity':
-                if self._specificity > self._metric_monitor:
-                    self._metric_monitor = self._specificity
-                    self.model.save( self._file_best_model )
-                    print( 'val_specificity has improved: saving best model to ' , self._file_best_model )                    
-        
-            elif self._metric == 'cohen_kappa':
-                if self._cohen_kappa > self._metric_monitor:
-                    self._metric_monitor = self._cohen_kappa
-                    self.model.save( self._file_best_model )
-                    print( 'val_cohen_kappa has improved: saving best model to ' , self._file_best_model )        
-    
+        # Case 2 --> model improvement corresponds to a metric increasing in value 
+        else:
+            str_metric     = '_' + self._metric
+            metric_current = getattr( self , str_metric )  
+            
+            if metric_current > self._metric_monitor:
+                self._metric_monitor = metric_current
+                self._save_model     = True
+                joblib.dump( self._clf , self._file_model )
+                print( '\t\tTesting ', self._metric.upper() ,' has improved: best model saved to ' , self._file_model )            
+             else:
+                self._save_model = False
+
+
+        # Save ground truth and predictions
+        if self._saved_model:
+            df = pd.DataFrame( { 'y_true': y_true.tolist() ,
+                                 'y_prob': y_prob.tolist() } )
+
+            with open( self._file_preds , 'w' ) as fp:
+                json.dump( df , fp , sort_keys=True )
+            
+            print( '\t\tTesting probabilities saved to ', self._file_preds )
+       
     
     
     # ===================================
@@ -806,34 +820,82 @@ class SYML:
 
     
     # ===================================
+    # Write config file
+    # ===================================
+    
+    def _save_config( kwargs ):
+        if self._saved_model:     
+            dict = { 'model': { 'algorithm': self._alg     ,
+                                'metric'   : self._metric  ,
+                                'col_out'  : self._col_out ,
+                                'select'   : select        ,
+                                'exclude'  : exclude       } ,
+                     'validation': { 'testing'   : self._perc_test  ,
+                                     'col_constr': self._col_constr , 
+                                     'kfold_cv'  : self._kfold_cv   ,
+                                     'n_folds'   : self._n_folds    }
+
+            if 'rf' in self._alg:
+                aux = { 'rf_params': kwargs }
+            elif 'xg' in self._alg:
+                aux = { 'xg_params': kwargs }
+
+            dict.update( aux )
+
+            with open( fileout , 'w' ) as outfile:
+                yaml.dump( dict , outfile , default_flow_style=False )
+        
+            print( '\t\tConfig file has been saved to ', self._file )     
+
+  
+
+    # ===================================
     # Update logger
     # ===================================
     
-    def _update_logger( self , epoch ):    
-        # Distinguish between case with 2 classes and > 2 classes        
-        if self._num_classes == 2:
-            df = pd.DataFrame( { 'val_accuracy'   : self._accuracy    ,
-                                 'val_precision'  : self._precision   ,
-                                 'val_recall'     : self._recall      , 
-                                 'val_f1score'    : self._f1score     , 
-                                 'val_auc'        : self._auc         ,
-                                 'val_sensitivity': self._sensitivity ,
-                                 'val_specificity': self._specificity ,
-                                 'val_cohen_kappa': self._cohen_kappa ,
-                                 'threshold'      : self._threshold   ,
-                                 'phase'          : self._phase       } , index=[epoch] )
+    def _update_logger( self , df_params , n_grid=0 , n_fold=0 ):
+        # Common data frame
+        df = pd.DataFrame( { 'hash'      : self._label_out   ,
+                             'task'      : self._task_type   ,
+                             'n_grid'    : self._n_grid      ,
+                             'n_fold'    : self._n_fold      ,
+                             'save_model': self._saved_model ,
+                             } )
+
+
+        # Distinguish the various cases        
+        if self._task_type == 'classification':
+            if self._num_classes == 2:
+                aux = pd.DataFrame( { 'test_accuracy'   : self._accuracy    ,
+                                      'test_precision'  : self._precision   ,
+                                      'test_recall'     : self._recall      , 
+                                      'test_f1score'    : self._f1score     , 
+                                      'test_auc'        : self._auc         ,
+                                      'test_sensitivity': self._sensitivity ,
+                                      'test_specificity': self._specificity ,
+                                      'test_cohen_kappa': self._cohen_kappa ,
+                                      'threshold'       : self._threshold } )
                                  
-        else:
-            df = pd.DataFrame( { 'val_accuracy'   : self._accuracy ,
-                                 'val_cohen_kappa': self._cohen_kappa } , index=[epoch] )
+            else:
+                aux = pd.DataFrame( { 'test_accuracy'   : self._accuracy ,
+                                     'test_cohen_kappa': self._cohen_kappa } )
+
+        elif self._task_type == 'regression':
+                aux = pd.DataFrame( { 'test_mse'   : self._mse ,
+                                      'test_r2'    : self._r2 } )
+    
+        df.update( aux )
+
+
+        # Add parameters of the grid point
+        df = pd.concat( [ df , df_params ] , axis=1 ) 
+ 
             
-        
         # Write to CSV file
-        if os.path.isfile( self._file_metric_logger ):
-            df.to_csv( self._file_metric_logger , mode='a' , 
+        if os.path.isfile( self._file_logger ):
+            df.to_csv( self._file_logger , mode='a' , 
                        header=False , sep=SEP , index=False )
         else:
-            df.to_csv( self._file_metric_logger , 
+            df.to_csv( self._file_logger , 
                        sep=SEP , index=False )
-
 

@@ -18,7 +18,7 @@ model:
     # Algorithm name, choose among [ 'rf-class' , 'rf-regr' , 'xgboost-class' , 'xgboost-regr' ]
     algorithm: rf-class   
 
-    # Metric to select best model, choose among [ 'accuracy' , 'mse' , 'auc' , 'cohen_kappa' ]
+    # Metric to select best model, choose among [ 'accuracy' , 'r2' , 'auc' , 'cohen_kappa' ]
     metric: auc
 
     # Output variable
