@@ -1,8 +1,7 @@
-'''
-CONFIG FILE FOR SKLEARN-BASED
-     SYMBOLIC ML MODELING          
-'''
-
+#
+# CONFIG FILE FOR SKLEARN-BASED
+#     SYMBOLIC ML MODELING          
+#
 # Author   : Filippo Arcadu
 # Date     : 09/11/2018
 
@@ -22,7 +21,7 @@ model:
     metric: auc
 
     # Output variable
-    col_out: 'NUMEX'
+    col_out: NUMEX
 
     # Feature columns to select, if "*" is present, the string is used to identify all column
     # names containing it
@@ -45,7 +44,7 @@ validation:
     testing: 20
 
     # Name of the column constraining the fold splitting
-    col_constr: None
+    col_constr: ANONID
 
     # Enable K-fold CV
     kfold_cv: True
@@ -63,13 +62,13 @@ validation:
 
 rf_params:
     # Number of trees on the forest
-    n_estimators: 2:40:5
+    n_estimators: '2:40:5'
 
     # Criterion to measure the quality of the split, choose between [ 'entropy' , 'gini' ]
     criterion: [ 'entropy' , 'gini' ]
 
     # Max depth of a tree
-    max_depth: 4:20:4
+    max_depth: '4:20:4'
 
     # Min number of samples to split an internal node
     min_samples_split: 4

@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 import yaml , json
 import glob
+import numbers
 
 from sklearn.metrics import accuracy_score , precision_score , recall_score , r2_score , \
                             f1_score , cohen_kappa_score , roc_curve , auc 
@@ -139,15 +140,25 @@ class SYML:
         # Get model parameters
         self._alg     = cfg[ 'model' ][ 'algorithm' ]
         self._metric  = cfg[ 'model' ][ 'metric' ]
+        self._col_out = cfg[ 'model' ][ 'col_out' ]
         self._select  = cfg[ 'model' ][ 'select' ]
         self._exclude = cfg[ 'model' ][ 'exclude' ]
 
+        if self._select == 'None':
+            self._select = None
+
+        if self._exclude == 'None':
+            self._exclude = None
+
 
         # Get validation parameters
-        self._alg     = cfg[ 'validation' ][ 'testing' ]
-        self._metric  = cfg[ 'validation' ][ 'col_constr' ]
-        self._exclude = cfg[ 'validation' ][ 'kfold_cv' ]
-        self._n_folds = cfg[ 'validation' ][ 'n_folds' ]
+        self._test_perc  = cfg[ 'validation' ][ 'testing' ]
+        self._col_constr = cfg[ 'validation' ][ 'col_constr' ]
+        self._kfold_cv   = cfg[ 'validation' ][ 'kfold_cv' ]
+        self._n_folds    = cfg[ 'validation' ][ 'n_folds' ]
+
+        if self._col_constr == 'None':
+            self._col_constr = None
 
 
         # Get type of task
@@ -160,15 +171,14 @@ class SYML:
         # Get random forest parameters
         self._params = []
 
-        if self._alg == 'rf':
+        if 'rf-' in self._alg:
             chapter = 'rf_params'
 
             if chapter in cfg.keys():
                 for i in range( len( RF_PARAMS ) ):
                     if RF_PARAMS[i] in cfg[ chapter ].keys():
                         self._params.append( self._parse_arg( cfg[ chapter ][ RF_PARAMS[i] ] ,
-                                                              arg_type = 'int'                     ,
-                                                              var      = chapter + ':' + RF_PARAMS[i] ) )
+                                                              var = chapter + ':' + RF_PARAMS[i] ) )
                     else:
                         sys.exit( 'ERROR ( SYML -- _read_config_file ): param ' + RF_PARAMS[i] + \
                                   ' is not contained inside ' + self._file_cfg + '!\n\n' )
@@ -178,16 +188,15 @@ class SYML:
                           self._file_cfg + '!\n\n' ) 
 
         
-         # Get random forest parameters
-        if self._alg == 'xg':
+        # Get xgboost parameters
+        elif 'xgboost-' in self._alg:
             chapter = 'xg_params'
 
             if chapter in cfg.keys():
                 for i in range( len( XG_PARAMS ) ):
                     if XG_PARAMS[i] in cfg[ chapter ].keys():
                         self._params.append( self._parse_arg( cfg[ chapter ][ XG_PARAMS[i] ] ,
-                                                              arg_type = 'int'                     ,
-                                                              var      = chapter + ':' + XG_PARAMS[i] ) )
+                                                              var = chapter + ':' + XG_PARAMS[i] ) )
                     else:
                         sys.exit( 'ERROR ( SYML -- _read_config_file ): param ' + XG_PARAMS[i] + \
                                   ' is not contained inside ' + self._file_cfg + '!\n\n' )
@@ -202,36 +211,70 @@ class SYML:
     # Parse argument from config file 
     # ===================================
  
-    def _parse_arg( self , arg , arg_type='string' , var='variable' ):
+    def _parse_arg( self , arg , var='variable' ):
         try:
+            arg = str( arg )
+
             # Case "," is present
             if ',' in arg:
                 entries   = arg.split( ',' )
                 n_entries = len( entries )
+                arg_type  = self._get_type( entries[0] )
         
             # Case ":" is present
             elif ':' in arg:
                 entries   = arg.split( ':' )
                 n_entries = len( entries )
+                arg_type  = self._get_type( entries[0] )
 
             # Case single entry
             else:
                 entries   = arg
                 n_entries = 1
+                arg_type  = self._get_type( entries )
 
             # Convert to either integer or float
-            if arg_type != 'string' and arg_type != 'bool':
+            if arg_type != str and arg_type != bool:
                 if n_entries > 1:
                     for i in range( n_entries ):
-                        if arg_type == 'int':
+                        if arg_type == myint:
                             entries[i] = myint( entries[i] )
-                        elif arg_type == 'float':
+                        elif arg_type == myfloat:
                             entries[i] = myfloat( entries[i] )
 
-            return entries
+                    if ':' in arg and ( arg_type == myint or argtype == myfloat ):
+                        entries = np.linspace( myfloat( entries[0] ) , 
+                                               myfloat( entries[1] ) ,
+                                               myfloat( entries[2] ) )
 
+                    if arg_type == myint:
+                        entries = entries.astype( myint )
+
+        
         except:
             sys.exit( '\nERROR ( SYML -- _parse_arg ): issue with ' + var + '!\n\n' )
+
+        return entries
+
+
+    def _get_type( self , var ):
+        try:
+            num = myfloat( var )
+
+            if '.' in var:
+                arg_type = myfloat
+            else:
+                arg_type = myint
+
+        except:
+            if var == 'None':
+                arg_type = None
+            elif ( var is True ) or ( var == 'True' ) or ( var is False ) or ( var == 'False' ):
+                arg_type = bool
+            else:
+                arg_type = str
+
+        return arg_type
 
 
 
@@ -283,8 +326,8 @@ class SYML:
                                   'Available Keys: (' + ','.join( self._df.keys() ) + ')\n\n' )    
 
         else:
-            self._feats = self._df.keys()[:]
-            
+            self._feats = self._df.keys()[:].tolist()
+
 
         # Remove outcome variable if present
         if self._col_out in self._feats:
@@ -352,7 +395,7 @@ class SYML:
 
     def _1hot_encoding( self ):
         # Do 1-hot encoding
-        keys = self._df_enc.keys()
+        keys = self._df_enc.keys().tolist()
         keys.remove( self._col_out )
 
         keys_str = []
@@ -361,7 +404,9 @@ class SYML:
                 keys_str.append( keys[i] )    
 
         if len( keys_str ):
-            self._dl_enc = pd.get_dummies( self._dl_enc , columns=keys_str )
+            self._dl_enc = pd.get_dummies( self._df , columns=keys_str )
+        else:
+            self._dl_enc = self._df
 
 
         # Do label encoding
@@ -398,17 +443,12 @@ class SYML:
         import random        
 
         str_time = strftime("%Y-%m-%d-%H-%M-%S", gmtime())
-        hash_out = random.getrandbits( 64 )
-
-        if self._alg == 'rf':
-            string_alg = self._alg
-        elif self._alg == 'xgboost':
-            string_alg = 'xg'
+        hash_out = str( random.getrandbits( 64 ) )
 
         if self._add_label is None:
-            self._label_out = string_alg + '_' + str_time + '_' + hash_out
+            self._label_out = self._alg + '_' + str_time + '_' + hash_out
         else:
-            self._label_out = string_alg + '_' + self._add_label + '_' + str_time + '_' + hash_out
+            self._label_out = self._alg + '_' + self._add_label + '_' + str_time + '_' + hash_out
 
 
 
@@ -419,7 +459,7 @@ class SYML:
     def _create_param_grid( self ):
         import itertools
 
-        if self._alg == 'rf' or self._alg == 'xgboost':
+        if 'rf-' in self._alg or 'xgboost-' in self._alg:
             self._param_combs = list( itertools.product( self._params[0] , self._params[1] ,
                                                          self._params[2] , self._params[3] ,
                                                          self._params[4] , self._params[5] ,
@@ -431,7 +471,7 @@ class SYML:
     # Training
     # ===========================================
 
-    def _train():
+    def _train( self ):
         # Split dataset
         self._split_data( save=True )
 
@@ -445,7 +485,7 @@ class SYML:
     # Split data
     # ===========================================
 
-    def _split_data( save=False ):
+    def _split_data( self , save=False ):
         from sklearn.model_selection import StratifiedKFold
 
         # Get constrained column
@@ -454,7 +494,7 @@ class SYML:
             y_sel = self._df[ self._col_out ].values
         
         else:
-            constr              = self._df[ self._constr ].values
+            constr              = self._df[ self._col_constr ].values
             constr_un , inds_un = np.unique( constr , return_index=True )
             
             inds  = np.arange( len( inds_un ) )
@@ -468,11 +508,11 @@ class SYML:
         
         # Case multiple splits to do k-fold cross-validation
         if self._kfold_cv:
-            strat_kfold = StratifiedKFold( n_splits = self._nfolds )
+            strat_kfold = StratifiedKFold( n_splits = self._n_folds )
 
             inds_train = [];  inds_test = []
 
-            for train_index, test_index in skf.split( inds , y_sel ):
+            for train_index, test_index in strat_kfold.split( inds , y_sel ):
                 inds_train.append( train_index )
                 inds_test.append( test_index )                          
 
@@ -480,12 +520,12 @@ class SYML:
         # Case single split
         else:
             if self._testing < 1.0:
-                mem           = self._testing
-                self._testing = 20
+                mem             = self._test_perc
+                self._test_perc = 20
                 print( 'Warning ( SYML -- _split_data ): selected percentage for testing is too low ' + \
-                       '(' + str( mem ) + ')!\nTesting percentage set to ' + str( self._testing ) )
+                       '(' + str( mem ) + ')!\nTesting percentage set to ' + str( self._test_perc ) )
 
-            n_test     = myint( self._df.shape[0] * self._testing / 100.0 )
+            n_test     = myint( self._df.shape[0] * self._test_perc / 100.0 )
             
             inds_test  = random.sample( inds , n_test )
             inds_train = np.setdiff1d( inds , inds_test )
@@ -553,11 +593,11 @@ class SYML:
 
                     df_aux  = self._df.iloc[ inds_real_train[i] ]
                     fileout = os.path.join( self._path_out , 'syml_split_train_' + str_fold + '_' + \
-                                                 self._label_out + '.csv' )
+                                                self._label_out + '.csv' )
                     df_aux.to_csv( fileout , sep=SEP , index=False )
 
                     df_aux  = self._df.iloc[ inds_real_test[i] ]
-                    fileout = os.path.join( self._path_out , 'syml_split_test_' + str_fold + '_' + \ 
+                    fileout = os.path.join( self._path_out , 'syml_split_test_' + str_fold + '_' + \
                                                 self._label_out + '.csv' )
                     df_aux.to_csv( fileout , sep=SEP , index=False )
 
@@ -585,7 +625,7 @@ class SYML:
                 from sklearn.ensemble import RandomForestRegressor
                 Algorithm = RandomForestRegressor
 
-            kwargs = pd.DataFrame( columns = RF_PARAM_LIST }
+            kwargs = pd.DataFrame( columns = RF_PARAM_LIST )
 
         elif 'xg_boost' in self._alg:
             if self._task_type == 'classification':
@@ -595,7 +635,7 @@ class SYML:
                 from xgboost import XGBRegressor
                 Algorithm = XGBRegressor
 
-            kwargs = pd.DataFrame( columns = XG_PARAM_LIST }
+            kwargs = pd.DataFrame( columns = XG_PARAM_LIST )
 
 
         # For loop of param grid search
@@ -621,11 +661,11 @@ class SYML:
 
 
                 # Initialize algorithm
-                clf = Algorithm( **kwargs )
+                self._clf = Algorithm( **kwargs )
 
 
                 # Fit algorithm to training data
-                clf.fit( x_train , y_train )
+                self._clf.fit( x_train , y_train )
 
 
                 # Get testing data
@@ -634,7 +674,7 @@ class SYML:
  
                 
                 # Predict on testing data
-                y_prob = clf._predict_proba( x_test )
+                y_prob = self._clf._predict_proba( x_test )
 
 
                 # Compute testing metrics
@@ -743,7 +783,7 @@ class SYML:
             self._mse = mean_squared_error( y_true , y_prob )
             self._r2  = r2_score( y_true , y_pred )
             print( '\t\tmse: %s - r_squared: %s ' % \
-                  ( self._num2str( self._accuracy ) , self._num2str( self._cohen_kappa ) ) 
+                  ( self._num2str( self._accuracy ) , self._num2str( self._cohen_kappa ) ) ) 
 
 
 
@@ -798,7 +838,7 @@ class SYML:
                 self._save_model     = True
                 joblib.dump( self._clf , self._file_model )
                 print( '\t\tTesting ', self._metric.upper() ,' has improved: best model saved to ' , self._file_model )            
-             else:
+            else:
                 self._save_model = False
 
 
@@ -850,7 +890,7 @@ class SYML:
                      'validation': { 'testing'   : self._perc_test  ,
                                      'col_constr': self._col_constr , 
                                      'kfold_cv'  : self._kfold_cv   ,
-                                     'n_folds'   : self._n_folds    }
+                                     'n_folds'   : self._n_folds    } }
 
             if 'rf' in self._alg:
                 aux = { 'rf_params': kwargs }
