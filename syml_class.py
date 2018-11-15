@@ -122,6 +122,12 @@ class SYML:
         self._df = pd.read_csv( self._file_in , sep=SEP )
 
 
+        # Check if there NaNs
+        if self._df.isnull().values.any():
+            sys.exit( 'ERROR ( SYML -- _read_input_table ): NaN values are present in the input data frame!\n' + \
+                      'Use the option "-p" to print all columns separately and to detect where the NaNs are' )
+
+
         # Check size
         if self._df.shape[1] <= 1:
             self._df = pd.read_csv( self._file_in , sep=';' )
