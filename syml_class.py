@@ -986,13 +986,18 @@ class SYML:
                 label = ''
 
             file_out = self._file_model.replace( 'GAP' , label )
-            joblib.dump( self._clf , self._file_model )
+            joblib.dump( models[i] , file_out )
             files.append( file_out )
 
         if len( files ) == 1:
-            print( '\t\t--------> Best model saved to ' , self._file_model )            
+            print( '\t\t--------> Best model saved to ' , files[0] )            
+        
         else:
-            print( '\t\t--------> Best models saved to:\n' , files )            
+            print( '\t\t--------> Best models saved to:' )
+            
+            for i in range( len( files ) ):
+                print( '\t\t-------->    ' , files[i] )
+
 
    
 
