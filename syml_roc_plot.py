@@ -6,7 +6,6 @@ from __future__ import print_function , division
 import argparse
 import sys , os
 import json
-import pandas as pd
 import numpy as np
 from sklearn import metrics as me
 from scipy import interpolate
