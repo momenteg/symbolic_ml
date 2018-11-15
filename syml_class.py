@@ -15,11 +15,11 @@ import glob
 import numbers
 import itertools
 
-from sklearn.metrics import accuracy_score , precision_score , recall_score , r2_score , \
-                            f1_score , cohen_kappa_score , roc_curve , auc 
 from sklearn.externals import joblib            
 
+from syml_metrics import Metrics
 
+    
 
 
 # =============================================================================
@@ -740,6 +740,12 @@ class SYML:
         self._init_monitor()
 
 
+        # Initialize class compute metrics
+        cmet = Metrics( task      = self._task_type  ,
+                        n_classes = self._n_classes  ,
+                        metric    = self._metric    )    
+
+
         # Load modules
         if 'rf' in self._alg:
             if self._task_type == 'classification':
@@ -765,7 +771,7 @@ class SYML:
             print( '\n\t.... training at grid point n.', i,' out of ', len( self._param_combs ) )
            
             # Initialize list of metrics and probabilities
-            metrics = [];  trues = [];  probs = []
+            models = [];  metrics = [];  trues = [];  probs = []
 
             # For loop on k-fold for cross-validation
             for j in range( self._n_splits ):
@@ -811,7 +817,8 @@ class SYML:
 
 
                 # Compute testing metrics
-                metrics.append( self._compute_metrics( y_test , y_prob ) )
+                models.append( self._clf )
+                metrics.append( cmet._compute_metrics( y_test , y_prob ) )
                 trues.append( y_test.tolist() )
                 probs.append( y_prob.tolist() )
 
@@ -829,8 +836,11 @@ class SYML:
 
 
             if save:
-                # Save model if selected metric has improved
-                self._save_model()
+                # Get feature importance
+                self._get_feature_importance( models )
+
+               # Save model if selected metric has improved
+                self._save_models( models )
 
 
                 # Save model if selected metric has improved
@@ -851,7 +861,7 @@ class SYML:
         self._file_logger = os.path.join( self._path_out , 'syml_logger_' + self._label_out + '.csv' )
 
         # Model
-        self._file_model = os.path.join( self._path_out , 'syml_model_' + self._label_out + '.pkl' )
+        self._file_model = os.path.join( self._path_out , 'syml_model_' + self._label_out + '_GAP.pkl' )
 
         # Predictions on testing
         self._file_histo = os.path.join( self._path_out , 'syml_history_' + self._label_out + '.json' )
@@ -873,88 +883,6 @@ class SYML:
 
 
    
-    # ===================================
-    # Compute metrics
-    # ===================================
-    
-    def _compute_metrics( self , y_true , y_prob ):
-        # Common print
-        print( '\t\tTesting metrics:' )
-
-        
-        # Case --> Classification
-        if self._task_type == 'classification':
-
-            # Transform probabilities in 1-class prediction
-            y_class = y_prob.argmax( axis=1 ).astype( myint )
-
-
-            # Compute metrics for 2-class problem
-            if self._n_classes == 2:
-                if len( np.unique( y_class ) ) == 1:
-                    self._accuracy    = self._precision   = self._recall    = \
-                    self._f1score     = self._cohen_kappa = self._auc       = \
-                    self._sensitivity = self._specificity = self._threshold = 0.0
-                
-                else:
-                    self._accuracy    = accuracy_score( y_true , y_class )
-                    self._precision   = precision_score( y_true , y_class )
-                    self._recall      = recall_score( y_true , y_class )
-                    self._f1score     = f1_score( y_true , y_class )
-                    self._cohen_kappa = cohen_kappa_score( y_true , y_class )
-                    fpr , tpr , thres = roc_curve( y_true , y_prob[:,1] )
-                    self._auc         = auc( fpr , tpr )
-                    self._calc_sens_and_spec( tpr , fpr , thres )
-            
-                print( '\t\t\taccuracy: %s - precision: %s - recall: %s - f1score: %s - cohen_kappa: %s' % \
-                    ( self._num2str( self._accuracy ) , self._num2str( self._precision ) ,
-                      self._num2str( self._recall ) , self._num2str( self._f1score ) , 
-                      self._num2str( self._cohen_kappa ) ) )
-                print( '\t\t\tauc: %s - sensitivity( %s ): % s - specificity( %s ): %s' % \
-                    ( self._num2str( self._auc ) , self._num2str( self._threshold ) , 
-                      self._num2str( self._sensitivity ) , self._num2str( self._threshold ) , 
-                      self._num2str( self._specificity ) ) )
-        
-            else:
-                self._accuracy    = accuracy_score( y_true , y_class )
-                self._cohen_kappa = cohen_kappa_score( y_true , y_class )
-                print( '\t\t\taccuracy: %s - cohen_kappa: %s ' % \
-                       ( self._num2str( self._accuracy ) , self._num2str( self._cohen_kappa ) ) )    
-    
-
-        # Case --> Regression
-        elif self._task_type == 'regression':
-            self._mse = mean_squared_error( y_true , y_prob )
-            self._r2  = r2_score( y_true , y_pred )
-            print( '\t\t\tmse: %s - r_squared: %s ' % \
-                  ( self._num2str( self._accuracy ) , self._num2str( self._cohen_kappa ) ) ) 
-
-        return getattr( self , '_' + self._metric )
-
-
-
-    # ===================================
-    # Calculate sensitivity and specificity
-    # using Youden's operating point
-    # ===================================
-        
-    def _calc_sens_and_spec( self , tpr , fpr  , thres ):
-        # Compute best operating point on ROC curve, define as 
-        # the one maximizing the difference ( TPR - FPR ), also
-        # known as Youden's operating point
-        diff             = tpr - fpr
-        i_max            = np.argwhere( diff == np.max( diff ) )
-        self._threshold  = thres[ i_max ][0]
-        fpr_best         = fpr[i_max]
-        tpr_best         = tpr[i_max]
-        
-        
-        # Compute sensitivity and specificity at optimal operating point
-        self._sensitivity = tpr[ i_max ][0]
-        self._specificity = 1 - fpr[ i_max ][0]
-        
-    
-
     # ===================================
     # Evaluate metrics
     # ===================================
@@ -1022,44 +950,75 @@ class SYML:
     
     
     # ===================================
+    # Get feature importance
+    # ===================================
+    
+    def _get_feature_importance( self , models ):
+        self._feat_imp = []
+
+        for i in range( len( models ) ):
+            self._feat_imp.append( models[i].feature_importances_.tolist() )
+   
+
+    
+    # ===================================
     # Save model according to a selected metric
     # ===================================
     
-    def _save_model( self ):
-        joblib.dump( self._clf , self._file_model )
-        print( '\t\t--------> Best model saved to ' , self._file_model )            
+    def _save_models( self , models ):
+        files = []
 
+        for i in range( len( models ) ):
+            if len( models ) > 1:
+                if i < 10:
+                    str_num = '0' + str( i )
+                else:
+                    str_num = str( i )
 
-    
+                if self._cv_type == 'k-fold':
+                    str_aux = 'fold' 
+                elif self._cv_type == 'split':
+                    str_aux = 'split'
+
+                label = str_aux + str_num
+
+            else:
+                label = ''
+
+            file_out = self._file_model.replace( 'GAP' , label )
+            joblib.dump( self._clf , self._file_model )
+            files.append( file_out )
+
+        if len( files ) == 1:
+            print( '\t\t--------> Best model saved to ' , self._file_model )            
+        else:
+            print( '\t\t--------> Best models saved to:\n' , files )            
+
+   
+
     # ===================================
     # Save best model according to a selected metric
     # ===================================
     
     def _save_history( self , trues , probs ):
-        df = dict( { 'y_true'      : trues               ,
-                     'y_prob'      : probs               ,
-                     'file_in'     : self._file_in       ,
-                     'task'        : self._task_type     ,
-                     'algorithm'   : self._alg           ,
-                     'feature_cols': self._feats         ,
-                     'outcome_col' : self._col_out       ,
-                     'constr_col'  : self._col_constr    ,
-                     'metric'      : self._metric        ,
-                     'peak_value'  : self._metric_monitor } )
+        df = dict( { 'y_true'            : trues                ,
+                     'y_prob'            : probs                ,
+                     'file_in'           : self._file_in        ,
+                     'task'              : self._task_type      ,
+                     'algorithm'         : self._alg            ,
+                     'feature_cols'      : self._feats          ,
+                     'outcome_col'       : self._col_out        ,
+                     'constr_col'        : self._col_constr     ,
+                     'feature_cols_enc'  : self._keys_enc       ,
+                     'feature_used'      : self._key_enc_feat   , 
+                     'metric'            : self._metric         ,
+                     'peak_value'        : self._metric_monitor ,
+                     'feature_importance': self._feat_imp       } )
 
         with open( self._file_histo , 'w' ) as fp:
             json.dump( df , fp , sort_keys=True )
             
         print( '\t\t--------> Testing probabilities saved to ', self._file_histo )
-       
-    
-    
-    # ===================================
-    # Print number as string with a certain precision 
-    # ===================================
-    
-    def _num2str( self , num ):
-        return str( round( num , 4 ) )
 
 
     
