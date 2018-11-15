@@ -1,5 +1,5 @@
 '''
-Plot feature importance
+Analysis of shap values
 '''
 
 from __future__ import print_function , division
@@ -15,11 +15,12 @@ import numpy as np
 # MATPLOTLIB WITH DISABLED X-SERVER 
 # =============================================================================
 
-import matplotlib as mpl
-mpl.use( 'Agg' )
+#import matplotlib as mpl
+#mpl.use( 'Agg' )
 import matplotlib.pyplot as plt
 
-
+import shap
+shap.initjs()
 
 
 # =============================================================================
@@ -39,20 +40,26 @@ myfloat2 = np.float64
 
 def _example():
     print( '\n\nBar plot of feature importance by aggregating one-hot encoded variables:\n' )
-    print( '"""\npython syml_fimp_plot.py -i syml_history_rf-class_2018-11-14-20-05-44_16159701171257366993.json -e\n"""\n\n' )
+    print( '"""\npython syml_shap_analysis.py -i1 syml_shap_class_2018-11-15-21-28-24_16188673153453647142.npy -i2 syml_history_class_2018-11-15-21-28-24_16188673153453647142.json\n"""\n\n' )
 
 
 def _get_args():
-    parser = argparse.ArgumentParser( description     = 'Bar plot of feature importance from SYML .json history file',
+    parser = argparse.ArgumentParser( description     = 'Create analysis plots for SHAP values',
                                       formatter_class = argparse.ArgumentDefaultsHelpFormatter    ,
                                       add_help        = False )
     
-    parser.add_argument('-i', '--file_json', dest='file_json',
-                        help='Specify input CSV file containing features and output variable')
+    parser.add_argument('-i1', '--file_npy', dest='file_npy',
+                        help='Specify input NPY file containing shap values')
 
-    parser.add_argument('-e', '--encoding', dest='encoding', action='store_true',
-                        help='Aggregate features that were split because of one-hot encoding')
-
+    parser.add_argument('-i2', '--file_json', dest='file_json',
+                        help='Specify input JSON file containing the history')
+     
+    parser.add_argument('-i3', '--file_csv', dest='file_csv',
+                        help='Specify input CSV file containing the input dataset')
+     
+    parser.add_argument('-i4', '--col_out', dest='col_out',
+                        help='Specify outcome variable')
+    
     parser.add_argument('-h', '--help', dest='help', action='store_true',
                         help='Print example command line' )
 
@@ -62,6 +69,10 @@ def _get_args():
         parser.print_help()
         _example()
         sys.exit()
+    
+    if args.file_npy is None:
+        parser.print_help()
+        sys.exit('\nERROR: Input SYML NPY history file not specified!\n')
 
     if args.file_json is None:
         parser.print_help()
@@ -70,6 +81,16 @@ def _get_args():
     if os.path.isfile( args.file_json ) is False:
         parser.print_help()
         sys.exit('\nERROR: Input SYML JSON history file does not exist!\n')
+    
+    if ( args.file_csv is not None and args.col_out is None ) or \
+        ( args.file_csv is not None and args.col_out is None ): 
+        parser.print_help()
+        sys.exit('\nERROR: Both an input CSV and the outcome column have to be specified!\n')
+ 
+    if args.file_csv is not None:
+        if os.path.isfile( args.file_csv ) is False:
+            parser.print_help()
+            sys.exit('\nERROR: Input CSV file does not exist!\n')
 
     return args
 
@@ -80,231 +101,131 @@ def _get_args():
 # Get data from JSON
 # =============================================================================
 
+def _get_data_from_npy( file_npy ):
+    arr = np.load( file_npy )
+    return arr[:,:,:arr.shape[2]-1]
+
+
+
+# =============================================================================
+# Get data from JSON
+# =============================================================================
+
 def _get_data_from_json( file_json ):
     df_json = json.loads( open( file_json ).read() )
-
-    feat_imp   = df_json[ 'feature_importance' ]
-    feat_names = df_json[ 'feature_used' ]
-    feat_enc   = df_json[ 'feature_cols_enc' ]
-    
-    n_arr = len( feat_imp )
-
-    feat_imp   = np.array( feat_imp ).reshape( n_arr , len( feat_imp[0] ) )
-    feat_names = np.array( feat_names )
-    
-    return feat_names , feat_imp , n_arr , feat_enc
+    feats   = df_json[ 'feature_cols' ]
+    return feats
 
 
 
 
 # =============================================================================
-# Aggregate features that got split because of one-hot encoding
+# Get data from JSON
 # =============================================================================
 
-def _aggregate_features( feat_imp , cols_all , cols_enc ):
-    # Transform list into array
-    feat_imp = np.array( feat_imp )
-
-
-    # Get indices of encoded columns among the list of columns
-    inds_enc = []
-
-    for i in range( len( cols_enc ) ):
-        aux = []
-        print( '\nOriginal columns: ', cols_enc[i] )
-
-        for j in range( len( cols_all ) ):
-            if cols_enc[i] in cols_all[j]:
-                aux.append( j )
-                print( '\t---> Encoded column: ', cols_all[j] )
-        inds_enc.append( aux )
-
-
-    # Combine feature importance
-    feat_imp_new = [];  feat_names_new = [];  n_col_new = 0
-
-    for i in range( len( cols_all ) ):
-        flag = True
-        for j in range( len( inds_enc ) ):
-            if i in inds_enc[j]:
-                flag = False
-                break
-        
-        if flag:
-            feat_imp_new.append( feat_imp[:,i] )
-            feat_names_new.append( cols_all[i] )
-            n_col_new += 1
-    
-    for i in range( len( inds_enc ) ):
-        mean = np.zeros( feat_imp.shape[0] )
-
-        for j in range( len( inds_enc[i] ) ):
-            mean += feat_imp[:,inds_enc[i][j]]
-
-        mean /= myfloat( len( inds_enc[i] ) )
-        feat_imp_new.append( mean )
-        feat_names_new.append( cols_enc[i] )
-        n_col_new += 1
-
-    feat_imp_new   = np.array( feat_imp_new ).reshape( feat_imp.shape[0] , n_col_new )
-    feat_names_new = np.array( feat_names_new )
-
-    return feat_names_new , feat_imp_new
-
+def _get_data_from_csv( file_csv , col_out ):
+    X = pd.read_csv( file_csv , sep=SEP )
+    X = X.drop( col_out )
+    return X
 
 
 
 # =============================================================================
-# Plot separate bar plots of feature importance
+# Plot separate summary plots
 # =============================================================================
 
-def _plot_separate_bar_plots( feat_names , feat_imp , n_arr  , file_in , width=0.6 ):
-    # Main for loop
-    for i in range( n_arr ):
-        # Initialize figure
-        fig  = plt.figure()
-        ax   = fig.add_subplot( 111 )
-        axes = plt.gca()
+def _plot( feats ):
+    import catboost
+    import pandas as pd
+    model = catboost.CatBoostClassifier()
+    model.load_model( 'tmp/syml_model_class_2018-11-15-22-50-06_7185573423039249820_fold00.bin' )
+    X     = pd.read_csv( '../../asthma_project/ml/ml_actionable_data/lavolta_01_baseline_asl_asl2_asl3.csv' , sep=',' )
+    print( X.keys() )
+    X     = X.drop( [ 'NUMEX' , 'NUMEX-BINARY' , 'ANONID' ] , axis=1 ) 
+    df_json = json.loads( open( 'tmp/syml_history_class_2018-11-15-22-50-06_7185573423039249820.json' ).read() )
+    feats_cat = df_json[ 'feature_cols_cat' ]
+    print( feats_cat )
     
+    inds = []
+    for i in range( len( feats_cat ) ):
+        ind = feats.index( feats_cat[i] )
+        inds.append( ind )
+    print( inds )
+    print( X.keys() )
+    xpool     = catboost.Pool( X , cat_features=inds )
 
-        # Eliminate frame
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['bottom'].set_visible(True)
-        ax.spines['left'].set_visible(True)
-
-
-        # Get positions for y-labels
-        y_pos = np.arange( len( feat_names ) )
-
-
-        # Set x-ticks
-        plt.xticks( fontsize=12, fontweight='bold' )
+    explainer = shap.TreeExplainer(model)
+    shaps = explainer.shap_values( xpool )
     
-       
-        # Get arrays
-        feats = np.array( feat_names ).copy()
-        imps  = np.array( feat_imp[i] )
+    fig = shap.summary_plot( shaps , X , show=False )
+    plt.savefig( 'scratch.png' )
+    #plt.show()        
 
-        
-        # Order features according to their importance
-        inds_sort = np.argsort( imps )
-        imps      = imps[ inds_sort ]
-        feats     = feats[ inds_sort ]
 
-        
-        # Establish y-ticks
-        plt.yticks( y_pos , feats , fontsize=12 ,
-                    fontweight='bold' , rotation=0 )
-    
-        
-        # Add text at the end of each column
-        for j, v in enumerate( imps ):
-            ax.text( v + 0.1 , j - 0.05 , str( round( v , 4 ) ) , color='red' ,
-                     fontsize=12 , fontweight='bold' )
+# =============================================================================
+# Plot separate summary plots
+# =============================================================================
 
-        
-        # Bar plot
-        plt.barh( y_pos , imps , width , align='center', alpha=0.7 )
-
-        
-        # Save figure
-        #plt.tight_layout()
-
+def _plot_separate_summary_plots( feats, shaps  , file_in  , X=None ):
+    for i in range( shaps.shape[0] ):
+        # Plot separate summary plots shap-impact
         if i < 10:
-            str_num = '0' + str( i )
+            str_num = 'fold0' + str( i )
         else:
-            str_num = str( i )
-        string    = 'fold' + str_num
-        
-        plt.title( 'Feature importance ' + string , fontsize=16 ,fontweight='bold' )
-        
-        save_plot = file_in[:len( file_in )-5] + '_feature-importance_' + string + '.png'
-        
-        if '.svg' in save_plot:
-            plt.savefig( save_plot , format='svg' , dpi=1200 )
-        else:
-            plt.savefig( save_plot )
-        
-        
-        
+            str_num = 'fold' + str( i )
 
+        print( shaps[0].shape )
+        fig = shap.summary_plot( shaps[0] , feats )
+        save_plot = file_in[:len( file_in )] + '_shap-plot-impact-point_' + str_num + '.pdf'
+        #plt.tight_layout()
+        #plt.savefig( save_plot , transparent=True , dpi=300 )
+        plt.show()        
+
+        fig = shap.summary_plot( shaps[0] , feats , plot_type='bar' )
+        save_plot = file_in[:len( file_in )] + '_shap-plot-impact-mean_' + str_num + '.pdf'
+        plt.tight_layout()
+        plt.savefig( save_plot , transparent=True , dpi=300 )
+
+        
+        # Plot dependency with respect to a variable
+        if X is not None:
+            for j in range( len( feats ) ):
+                fig = shap.dependence_plot( feats[j] , shaps[0] , X )
+                save_plot = file_in[:len( file_in )] + '_shap-plot-depend-' + feats[i] + '_' + str_num + '.pdf'
+                plt.tight_layout()
+                plt.savefig( save_plot , transparent=True , dpi=300 )
+           
+
+        
 # =============================================================================
-# Plot composite bar plot of feature importance
+# Plot composite summary plots
 # =============================================================================
 
-def _plot_composite_bar_plot( feat_names , feat_imp , n_arr  , file_in  , width=0.6 ):
-    # Compute mean and std of all features
-    feats    = np.array( feat_names  ).copy()
-    feat_imp = np.array( feat_imp )
+def _plot_composite_summary_plot( feats, shaps , file_in  , X=None ):
+    # Average shap values
+    shaps_mean = np.mean( shaps , axis=0 )
 
-    imps = np.mean( feat_imp , axis=0 )
-    std  = np.std( feat_imp , axis=0 )
+        
+    # Plot separate summary plots shap-impact
+    fig = shap.summary_plot( shaps_mean , feats )
+    save_plot = file_in[:len( file_in )] + '_shap-plot-impact-point_composite.pdf'
+    plt.savefig( save_plot , transparent=True , dpi=300 )
+        
+    fig = shap.summary_plot( shaps_mean , feats , plot_type='bar' )
+    save_plot = file_in[:len( file_in )] + '_shap-plot-impact-mean_composite.pdf'
+    plt.tight_layout()
+    plt.savefig( save_plot , transparent=True , dpi=300 )
+
+        
+    # Plot dependency with respect to a variable
+    if X is not None:
+        for j in range( len( feats ) ):
+            fig = shap.dependence_plot( feats[j] , shaps_mean , X )
+            save_plot = file_in[:len( file_in )] + '_shap-plot-depend-' + feats[i] + '_composite.pdf'
+            plt.tight_layout()
+            plt.savefig( save_plot , transparent=True , dpi=300 )
+
     
-
-    # Initialize figure
-    fig  = plt.figure()
-    string = str( n_arr ) + '-fold CV'
-    plt.title( string + ' composite feature importance' , fontsize=16 ,fontweight='bold' )
-    ax   = fig.add_subplot( 111 )
-    axes = plt.gca()
-    
-
-    # Eliminate frame
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['bottom'].set_visible(True)
-    ax.spines['left'].set_visible(True)
-
-
-    # Get positions for y-labels
-    y_pos = np.arange( len( feats ) )
-
-
-    # Set x-ticks
-    plt.xticks( fontsize=12, fontweight='bold' )
-    
-
-    # Order features according to their importance
-    inds_sort = np.argsort( imps )
-    imps      = imps[ inds_sort ]
-    std       = std[ inds_sort ]
-    feats     = feats[ inds_sort ]
-
-
-    # Establish y-ticks
-    plt.yticks( y_pos , feats , fontsize=12 ,
-                fontweight='bold' , rotation=0 )
-    
-        
-    # Add text at the end of each column
-    aux = imps + std
-
-    for i, v in enumerate( aux ):
-        ax.text( v + 0.1 , i - 0.05 , str( round( v , 4 ) ) , color='red' ,
-                 fontsize=12 , fontweight='bold' )
-
-        
-    # Bar plot
-    plt.barh( y_pos , imps , width , align='center', alpha=0.7 )
-
-
-    # Add error bar
-    ax.errorbar( imps , y_pos , xerr=std , ecolor='black' , fmt='go' )
-        
-
-    # Save figure
-    #plt.tight_layout()
-
-    save_plot = file_in[:len( file_in )-5] + '_feature-importance_composite.png'
-        
-    if '.svg' in save_plot:
-        plt.savefig( save_plot , format='svg' , dpi=1200 )
-    else:
-        plt.savefig( save_plot )
- 
-        
-     
 
 # =============================================================================
 # MAIN
@@ -313,30 +234,34 @@ def _plot_composite_bar_plot( feat_names , feat_imp , n_arr  , file_in  , width=
 def main():
     # Get input arguments
     args = _get_args()
-    print( '\nInput JSON history file: ', args.file_json )
+    
+    print( '\nInput NPY file with shap values: ', args.file_npy )
+    print( 'Input JSON history file: ', args.file_json )
+    print( 'Input CSV data file: ', args.file_csv )
+    print( 'Output column: ', args.col_out )
 
 
-    # Get list of ground truth and probabilities
-    feat_names , feat_imp , n_arr , feat_enc = _get_data_from_json( args.file_json )
-    print( '\nNumber of arrays: ', n_arr )
-    print( 'Number of features: ', len( feat_imp[0] ) )
-    print( '\nFeature used for modeling:\n', feat_names )
-    print( '\nOne-hot encoded features:\n', feat_enc )
+    # Get all necessary data
+    shaps = _get_data_from_npy( args.file_npy )
+    feats = _get_data_from_json( args.file_json )
 
-
-    # Aggregate features that were split because of one-hot encoding
-    if args.encoding:
-        print( '\nAggregating features split due to one-hot encoding ....' )
-        feat_names , feat_imp = _aggregate_features( feat_imp , feat_names , feat_enc ) 
-        print( 'Number of features: ', len( feat_imp[0] ) )
+    if args.file_csv:
+        X = _get_data_from_csv( args.file_csv , args.col_out )
+    else:
+        X = None
+    
+    print( '\nShaps shape: ', shaps.shape )
+    print( '\nNumber of features: ', len( feats ) )
+    print( 'Feature names:\n', feats )
 
 
     # Plot ROC curves
-    print( '\nPlot separate bar plots of feature importance ....' )
-    _plot_separate_bar_plots( feat_names , feat_imp , n_arr , args.file_json )
+    print( '\nPlot SHAP separate summary plots ....' )
+    _plot( feats )
+    #_plot_separate_summary_plots( feats , shaps , args.file_npy , X=X )
 
-    print( '\nPlot composite bar plot of feature importance ....' )
-    _plot_composite_bar_plot( feat_names , feat_imp , n_arr , args.file_json )
+    print( '\nPlot SHAP composite summary plot ....' )
+    #_plot_composite_summary_plot( feats , shaps , args.file_npy , X=X )
 
     print( '\n\n' )
 
