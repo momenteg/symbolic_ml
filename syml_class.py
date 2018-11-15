@@ -15,11 +15,10 @@ import glob
 import numbers
 import itertools
 
-from sklearn.externals import joblib            
-
 from syml_metrics import Metrics
 
-    
+from catboost import Pool
+
 
 
 # =============================================================================
@@ -45,7 +44,7 @@ SEP = ','
 # ML ALGORITHM LIST 
 # =============================================================================
 
-ALGS = [ 'rf-class' , 'rf-regr' , 'xgboost-class' , 'xgboost-regr' ]
+ALGS = [ 'class' , 'regr' ]
 
 
 
@@ -63,11 +62,9 @@ CV_TYPES = [ 'k-fold' , 'resampling' ]
 # ALGORITHM PARAMETER LIST 
 # =============================================================================
 
-RF_PARAMS = [ 'n_estimators' , 'criterion' , 'max_depth' , 'min_samples_split' ,
-              'min_samples_leaf' , 'bootstrap' , 'oob_score' , 'class_weight' ]
-
-XG_PARAMS = [ 'booster' , 'num_feature' , 'eta' , 'gamma' , 'max_depth' , 
-              'lambda' , 'alpha' , 'tree_method' ] 
+PARAMS = [ 'loss_function' , 'iterations' , 'learning_rate' , 'l2_leaf_reg' ,
+           'bootstrap_type' , 'depth' , 'rsm' , 'leaf_estimation_method' , 
+           'boosting_type' , 'random_strength' ] 
 
 
 
@@ -107,14 +104,6 @@ class SYML:
         self._get_features()
 
 
-        # Slice data frame
-        self._slice_data_frame()
-
-
-        # 1-hot encoding of non-numeric variable
-        self._1hot_encoding()
-
-
         # Create label for output files
         self._create_output_label()
 
@@ -135,8 +124,11 @@ class SYML:
 
         # Check size
         if self._df.shape[1] <= 1:
-            sys.exit( 'ERROR ( SYML -- _read_input_table ): size of input table is (' + \
-                      ','.join( self._df.shape ) + ')!\n\n' )
+            self._df = pd.read_csv( self._file_in , sep=';' )
+
+            if self._df.shape[1] <= 1:
+                sys.exit( 'ERROR ( SYML -- _read_input_table ): tried "," and ";" as separator, but the size of the input table is (' + \
+                          ','.join( self._df.shape ) + ')!\n\n' )
 
 
 
@@ -157,19 +149,59 @@ class SYML:
         self._select  = cfg[ 'model' ][ 'select' ]
         self._exclude = cfg[ 'model' ][ 'exclude' ]
 
-        if self._select == 'None':
-            self._select = None
-
-        if self._exclude == 'None':
-            self._exclude = None
-
-
+        
         # Get validation parameters
         self._test_perc  = cfg[ 'validation' ][ 'testing' ]
         self._col_constr = cfg[ 'validation' ][ 'col_constr' ]
         self._cv_type    = cfg[ 'validation' ][ 'cv_type' ]
         self._n_splits   = cfg[ 'validation' ][ 'n_folds' ]
 
+
+        # Checkpoint
+        self._checkpoint()
+
+
+        # Get random forest parameters
+        self._params = []
+        chapter      = 'params'
+
+        if chapter in cfg.keys():
+            for i in range( len( PARAMS ) ):
+                if PARAMS[i] in cfg[ chapter ].keys():
+                    self._params.append( self._parse_arg( cfg[ chapter ][ PARAMS[i] ] ,
+                                                          var = chapter + ':' + PARAMS[i] ) )
+                else:
+                    sys.exit( 'ERROR ( SYML -- _read_config_file ): param ' + PARAMS[i] + \
+                              ' is not contained inside ' + self._file_cfg + '!\n\n' )
+
+        else:
+            sys.exit( '\nERROR ( SYML -- _read_config_file ): < rf_params > not found in ' + \
+                        self._file_cfg + '!\n\n' ) 
+
+        
+        # Print params
+        if self._verbose:
+            print( 'Params:\n', self._params )
+   
+
+    
+    # ===================================
+    # Checkpoint 
+    # ===================================
+    
+    def _checkpoint( self ):
+        if self._alg not in ALGS:
+            sys.exit( 'ERROR ( SYML -- _checkpoint ): selected algorithm ' + self._alg + ' is not available!\nChoose among ' + ','.join( ALGS ) + '\n\n'  )
+        
+        if self._select == 'None':
+            self._select = None
+
+        if self._exclude == 'None':
+            self._exclude = None
+
+        if self._cv_type not in CV_TYPES:
+            sys.exit( 'ERROR ( SYML -- _checkpoint ): selected type of cross-validation ' + self._alg + ' is not available!\nChoose among ' + ','.join( CV_TYPES ) + '\n\n'  )
+        
         if self._col_constr == 'None':
             self._col_constr = None
         
@@ -177,57 +209,7 @@ class SYML:
             self._cv_type = None
 
 
-        # Get type of task
-        if '-class' in self._alg:
-            self._task_type = 'classification'
-        elif '-regr' in self._alg:
-            self._task_type = 'regression'
 
-
-        # Get random forest parameters
-        self._params = []
-
-        if 'rf-' in self._alg:
-            chapter = 'rf_params'
-
-            if chapter in cfg.keys():
-                for i in range( len( RF_PARAMS ) ):
-                    if RF_PARAMS[i] in cfg[ chapter ].keys():
-                        self._params.append( self._parse_arg( cfg[ chapter ][ RF_PARAMS[i] ] ,
-                                                              var = chapter + ':' + RF_PARAMS[i] ) )
-                    else:
-                        sys.exit( 'ERROR ( SYML -- _read_config_file ): param ' + RF_PARAMS[i] + \
-                                  ' is not contained inside ' + self._file_cfg + '!\n\n' )
-
-            else:
-                sys.exit( '\nERROR ( SYML -- _read_config_file ): < rf_params > not found in ' + \
-                          self._file_cfg + '!\n\n' ) 
-
-        
-        # Get xgboost parameters
-        elif 'xgboost-' in self._alg:
-            chapter = 'xg_params'
-
-            if chapter in cfg.keys():
-                for i in range( len( XG_PARAMS ) ):
-                    if XG_PARAMS[i] in cfg[ chapter ].keys():
-                        self._params.append( self._parse_arg( cfg[ chapter ][ XG_PARAMS[i] ] ,
-                                                              var = chapter + ':' + XG_PARAMS[i] ) )
-                    else:
-                        sys.exit( 'ERROR ( SYML -- _read_config_file ): param ' + XG_PARAMS[i] + \
-                                  ' is not contained inside ' + self._file_cfg + '!\n\n' )
-
-            else:
-                sys.exit( '\nERROR ( SYML -- _read_config_file ): < xg_params > not found in ' + \
-                          self._file_cfg + '!\n\n' )
-
-
-        # Print params
-        if self._verbose:
-            print( 'Params:\n', self._params )
-   
-
-    
     # ===================================
     # Parse argument from config file 
     # ===================================
@@ -268,7 +250,7 @@ class SYML:
                                                    myfloat( entries[2] ) )
 
                         if arg_type == myint:
-                            entries = entries.astype( myint )
+                            entries = np.array( entries ).astype( myint )
 
                         entries = entries.tolist()
         
@@ -283,8 +265,9 @@ class SYML:
         if isinstance( arg , myint ) or \
             isinstance( arg , myfloat ) or \
                 isinstance( arg , myfloat2 ) or \
-                    isinstance( arg , bool )   or \
-                        ( isinstance( arg , str ) and ( ',' not in arg ) and ( ':' not in arg ) ): 
+                    isinstance( arg , float ) or \
+                        isinstance( arg , bool )   or \
+                            ( isinstance( arg , str ) and ( ',' not in arg ) and ( ':' not in arg ) ): 
             return True
         
         else:
@@ -321,7 +304,7 @@ class SYML:
         if self._col_out in self._df.keys():
             self._y = self._df[ self._col_out ].values
             
-            if self._task_type == 'classification':
+            if self._alg == 'class':
                 self._n_classes = len( np.unique( self._y ) )
 
                 if self._n_classes > 2:
@@ -353,7 +336,7 @@ class SYML:
                     if select in self._df.keys()[i]:
                         self._feats.append( self._df.keys()[i] )
                 
-                if len( feats ) == 0:
+                if len( self._feats ) == 0:
                     sys.exit( '\nERROR ( SYML -- _get_features ): no feature columns ' + \
                               'were selected with ' + self._select + '!\n'    + \
                               'Available Keys: (' + ','.join( self._df.keys() ) + ')\n\n' )    
@@ -377,11 +360,11 @@ class SYML:
 
 
         # Exclude columns
-        self._exclude_feats = []
+        self._feats_excl = []
 
         if self._col_constr is not None:
             self._feats.remove( self._col_constr ) 
-            self._exclude_feats.append( self._col_constr )
+            self._feats_excl.append( self._col_constr )
 
         if self._exclude is not None:
             if '*' in self._exclude:
@@ -390,23 +373,38 @@ class SYML:
                 for i in range( len( self._feats ) ):
                     if exclude in self._feats[i]:
                         self._feats.remove( self._feats[i] )
-                        self._exclude_feats.append( self._feats[i] )
+                        self._feats_excl.append( self._feats[i] )
                 
-                if len( self._feats ) == 0:
+                if len( self._feats_excl ) == 0:
                     sys.exit( '\nERROR ( SYML -- _get_features ): no feature columns ' + \
-                              'were selected with ' + self._exclude + '!\n'    + \
+                              'were excluded with ' + self._exclude + '!\n'    + \
                               'Available Keys: (' + ','.join( self._df.keys() ) + ')\n\n' )    
 
             else:
                 for i in range( len( self._exclude ) ):
                     if self._exclude[i] in self._df.keys():
                         self._feats.remove( self._exclude[i] )
-                        self._exclude_feats.append( self._exclude[i] )
+                        self._feats_excl.append( self._exclude[i] )
                     else:
-                        sys.exit( '\nERROR ( SYML -- _get_features ): feature columns ' + \
+                        sys.exit( '\nERROR ( SYML -- _get_features ): feature column ' + \
                                   self._exclude[i] + ' is not in input data frame!\n'    + \
                                   'Available Keys: (' + ','.join( self._df.keys() ) + ')\n\n' )    
-           
+
+        
+        # Get categorical columns
+        inds = np.argwhere( self._df.dtypes == object ).reshape( -1 ).tolist()
+         
+        if len( inds ):
+            self._feats_cat = [];  self._inds_feats_cat = []
+
+            for i in range( len( inds ) ):
+                if self._df.keys()[ inds[i] ] in self._feats:
+                    self._feats_cat.append( self._df.keys()[ inds[i] ] )
+                    self._inds_feats_cat.append( self._feats.index( self._df.keys()[ inds[i] ] ) )
+
+        else:
+            self._feats_cat = None
+
 
 
     # ===========================================
@@ -431,84 +429,6 @@ class SYML:
        
 
     # ===========================================
-    # Slicing data frame
-    # ===========================================
-
-    def _slice_data_frame( self ):
-        if self._col_constr is None:
-            self._df_enc = self._df[ self._feats + [ self._col_out ] ]
-        else:
-            self._df_enc = self._df[ self._feats + [ self._col_constr ] + [ self._col_out ] ]
-
-
-    # ===========================================
-    # Convert non-numeric to 1-hot
-    # ===========================================
-
-    def _1hot_encoding( self ):
-        # Do 1-hot encoding
-        keys = self._df_enc.keys().tolist()
-        keys.remove( self._col_out )
-
-        keys_str = []
-        for i in range( len( keys ) ):
-            if self._is_numeric(  keys[i] ) is False:
-                keys_str.append( keys[i] )    
-
-        if len( keys_str ):
-            self._df_enc   = pd.get_dummies( self._df , columns=keys_str )
-            self._keys_enc = keys_str 
-        else:
-            self._df_enc   = self._df
-            self._keys_enc = keys_str
-
-
-        # Do label encoding
-        if self._is_numeric( self._col_out ) is False:
-            from sklearn import preprocessing
-                
-            label_enc = preprocessing.LabelEncoding()           
-            arr       = self._df_enc[ self._col_out ].values
-            
-            label_enc.fit( arr )
-            
-            arr                           = label_enc.transform( arr )
-            self._df_enc[ self._col_out ] = arr
-            
-            if self._keys_enc is None:
-                self._keys_enc = [ self._col_out ]
-            else:
-                self._keys_enc += [ self._col_out ]
-
-
-        # New keys to use for training
-        if len( self._keys_enc ):
-            self._key_enc_feat = self._df_enc.keys().tolist()
-            self._key_enc_feat.remove( self._col_out )
-
-            print( self._exclude_feats )
-            if len( self._exclude_feats ):
-                for feat in self._exclude_feats:
-                    self._key_enc_feat.remove( feat )
-
-        else:
-            self._key_enc_feat = self._feats[:]
-
-        self._key_enc_out = self._col_out   
-
-
-    def _is_numeric( self , key ):
-        if self._df[ key ].dtype == myint or \
-            self._df[ key ].dtype == myfloat or \
-            self._df[ key ].dtype == myfloat2:
-            return True
-
-        else:
-            return False
-
-
-
-    # ===========================================
     # Create output label
     # ===========================================
 
@@ -531,12 +451,8 @@ class SYML:
     # ===========================================
 
     def _create_param_grid( self ):
-        if 'rf-' in self._alg or 'xgboost-' in self._alg:
-            self._param_combs = list( itertools.product( self._params[0] , self._params[1] ,
-                                                         self._params[2] , self._params[3] ,
-                                                         self._params[4] , self._params[5] ,
-                                                         self._params[6] , self._params[7] ) )  
-        
+        self._param_combs = list( itertools.product( *self._params ) ) 
+
 
 
     # ===========================================
@@ -664,8 +580,8 @@ class SYML:
         self._df_train = [];  self._df_test = []
     
         for i in range( len( inds_real_train ) ):
-            self._df_train.append( self._df_enc.iloc[ inds_real_train[i] ] )
-            self._df_test.append( self._df_enc.iloc[ inds_real_test[i] ] )
+            self._df_train.append( self._df.iloc[ inds_real_train[i] ] )
+            self._df_test.append( self._df.iloc[ inds_real_test[i] ] )
         
         
         # Save splits
@@ -741,29 +657,19 @@ class SYML:
 
 
         # Initialize class compute metrics
-        cmet = Metrics( task      = self._task_type  ,
+        cmet = Metrics( task      = self._alg  ,
                         n_classes = self._n_classes  ,
                         metric    = self._metric    )    
 
 
         # Load modules
-        if 'rf' in self._alg:
-            if self._task_type == 'classification':
-                from sklearn.ensemble import RandomForestClassifier
-                Algorithm = RandomForestClassifier
-            elif self._task_type == 'regression':
-                from sklearn.ensemble import RandomForestRegressor
-                Algorithm = RandomForestRegressor
-            PARAMS = RF_PARAMS
-
-        elif 'xg_boost' in self._alg:
-            if self._task_type == 'classification':
-                from xgboost import XGBClassifier
-                Algorithm = XGBClassifier
-            elif self._task_type == 'regression':
-                from xgboost import XGBRegressor
-                Algorithm = XGBRegressor
-            PARAMS = XG_PARAMS
+        if self._alg == 'class':
+            from catboost import CatBoostClassifier
+            Algorithm = CatBoostClassifier
+        
+        elif self._alg == 'regr':
+            from catboost import CatBoostRegressor
+            Algorithm = CatBoostRegressor
 
 
         # For loop of param grid search
@@ -781,14 +687,18 @@ class SYML:
                     print( '\n\t\t.... training split n.', j )
 
                 # Get training data
-                x_train = self._df_train[ j ][ self._key_enc_feat ].values.astype( myfloat )
-                y_train = self._df_train[ j ][ self._key_enc_out ].values.astype( myfloat )
+                x_train = self._df_train[ j ][ self._feats ]
+                y_train = self._df_train[ j ][ self._col_out ]
 
                 if self._verbose:
-                    print( '\t\t.... using ', len( self._key_enc_feat ),'features ', self._key_enc_feat )
-                    print( '\t\t.... predicting outcome ', self._key_enc_out )
+                    print( '\t\t.... using ', len( self._feats ),'features ', self._feats )
+                    print( '\t\t.... predicting outcome ', self._col_out )
 
-                
+               
+                # Catboost pool for training
+                train_pool = Pool( x_train , y_train , cat_features=self._inds_feats_cat )
+
+
                 # Get grid point parameters
                 kwargs    = {}
 
@@ -800,24 +710,28 @@ class SYML:
 
 
                 # Initialize algorithm
-                self._clf = Algorithm( **kwargs )
+                clf = Algorithm( **kwargs )
 
 
                 # Fit algorithm to training data
-                self._clf.fit( x_train , y_train )
+                clf.fit( train_pool )
 
 
                 # Get testing data
-                x_test = self._df_test[ j ][ self._key_enc_feat ].values
-                y_test = self._df_test[ j ][ self._key_enc_out ].values
+                x_test = self._df_test[ j ][ self._feats ]
+                y_test = self._df_test[ j ][ self._col_out ]
  
-                
+                 
+                # Catboost pool for testing
+                test_pool = Pool( x_test , y_test , cat_features=self._inds_feats_cat )
+
+               
                 # Predict on testing data
-                y_prob = self._clf.predict_proba( x_test )
+                y_prob = clf.predict_proba( test_pool )
 
 
                 # Compute testing metrics
-                models.append( self._clf )
+                models.append( clf )
                 metrics.append( cmet._compute_metrics( y_test , y_prob ) )
                 trues.append( y_test.tolist() )
                 probs.append( y_prob.tolist() )
@@ -837,9 +751,10 @@ class SYML:
 
             if save:
                 # Get feature importance
-                self._get_feature_importance( models )
+                self._get_shap_values( models )
 
-               # Save model if selected metric has improved
+                
+                # Save model if selected metric has improved
                 self._save_models( models )
 
 
@@ -861,14 +776,16 @@ class SYML:
         self._file_logger = os.path.join( self._path_out , 'syml_logger_' + self._label_out + '.csv' )
 
         # Model
-        self._file_model = os.path.join( self._path_out , 'syml_model_' + self._label_out + '_GAP.pkl' )
+        self._file_model = os.path.join( self._path_out , 'syml_model_' + self._label_out + '_GAP.bin' )
 
         # Predictions on testing
         self._file_histo = os.path.join( self._path_out , 'syml_history_' + self._label_out + '.json' )
         
-        # Predictions on testing
+        # Config file
         self._file_yaml = os.path.join( self._path_out , 'syml_config_' + self._label_out + '.yml' )
-        
+       
+        # Shap values
+        self._file_shap = os.path.join( self._path_out , 'syml_shap_' + self._label_out + '.npy' )
     
     
     # ===================================
@@ -924,7 +841,7 @@ class SYML:
         metrics = np.array( metrics ).astype( str ).tolist()
 
         df = pd.DataFrame( { 'hash'                           : self._label_out     ,
-                             'task'                           : self._task_type     ,
+                             'task'                           : self._alg     ,
                              'n_grid'                         : n_grid              ,
                              'n_splits'                       : self._n_splits      ,
                              'save_model'                     : save                , 
@@ -953,12 +870,23 @@ class SYML:
     # Get feature importance
     # ===================================
     
-    def _get_feature_importance( self , models ):
-        self._feat_imp = []
+    def _get_shap_values( self , models ):
+        self._shap_values = []
+        
+        X = self._df[ self._feats ]
+        Y = self._df[ self._col_out ]
+
+        data_pool = Pool( X , Y , cat_features = self._inds_feats_cat )
 
         for i in range( len( models ) ):
-            self._feat_imp.append( models[i].feature_importances_.tolist() )
-   
+            shaps = models[i].get_feature_importance( data_pool , fstr_type='ShapValues' )
+            self._shap_values.append( shaps )
+
+        self._shap_values = np.array( self._shap_values )
+
+        np.save( self._file_shap , self._shap_values )
+        print( '\t\t--------> Updated shap values to ', self._file_shap )
+
 
     
     # ===================================
@@ -986,7 +914,7 @@ class SYML:
                 label = ''
 
             file_out = self._file_model.replace( 'GAP' , label )
-            joblib.dump( models[i] , file_out )
+            models[i].save_model( file_out )
             files.append( file_out )
 
         if len( files ) == 1:
@@ -1009,16 +937,13 @@ class SYML:
         df = dict( { 'y_true'            : trues                ,
                      'y_prob'            : probs                ,
                      'file_in'           : self._file_in        ,
-                     'task'              : self._task_type      ,
                      'algorithm'         : self._alg            ,
                      'feature_cols'      : self._feats          ,
                      'outcome_col'       : self._col_out        ,
                      'constr_col'        : self._col_constr     ,
-                     'feature_cols_enc'  : self._keys_enc       ,
-                     'feature_used'      : self._key_enc_feat   , 
+                     'feature_cols_cat'  : self._feats_cat      , 
                      'metric'            : self._metric         ,
-                     'peak_value'        : self._metric_monitor ,
-                     'feature_importance': self._feat_imp       } )
+                     'peak_value'        : self._metric_monitor } )
 
         with open( self._file_histo , 'w' ) as fp:
             json.dump( df , fp , sort_keys=True )
@@ -1042,11 +967,7 @@ class SYML:
                                  'cv_type'   : self._cv_type    ,
                                  'n_folds'   : self._n_splits    } }
 
-        if 'rf' in self._alg:
-            aux = { 'rf_params': kwargs }
-        elif 'xg' in self._alg:
-            aux = { 'xg_params': kwargs }
-
+        aux = { 'params': kwargs }
         dict.update( aux )
 
         with open( self._file_yaml , 'w' ) as outfile:

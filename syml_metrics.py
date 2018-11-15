@@ -45,7 +45,7 @@ class Metrics:
     # Init 
     # ===================================
     
-    def __init__( self , task='classification' , n_classes=2 , metric='auc' ):
+    def __init__( self , task='class' , n_classes=2 , metric='auc' ):
         # Assign to class
         self._task      = task
         self._n_classes = n_classes
@@ -87,7 +87,7 @@ class Metrics:
 
         
         # Case --> Classification
-        if self._task == 'classification':
+        if self._task == 'class':
 
             # Transform probabilities in 1-class prediction
             y_class = y_prob.argmax( axis=1 ).astype( myint )
@@ -132,7 +132,7 @@ class Metrics:
     
 
         # Case --> Regression
-        elif self._task_type == 'regression':
+        elif self._task == 'regr':
             self._mse = mean_squared_error( y_true , y_prob )
             self._r2  = r2_score( y_true , y_pred )
             

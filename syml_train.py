@@ -118,7 +118,6 @@ def main():
     print( 'Additional label: ', syml._add_label )
     
     print( '\nMODEL' )
-    print( 'Type of task: ', syml._task_type )
     print( 'Algorithm: ', syml._alg )
     print( 'Metric: ', syml._metric )
 
@@ -129,10 +128,11 @@ def main():
         print( 'Feature selection: ', syml._select )
 
     if syml._exclude is not None:
-        print( 'Excluded features: ', syml._exclude_feats )
+        print( 'Excluded features: ', syml._feats_excl )
 
     print( 'Number of features for modeling: ', len( syml._feats ) )
-    print( 'Name of features for modeling:\n' , syml._feats )
+    print( '\nName of features for modeling:\n' , syml._feats )
+    print( '\nName of categorical features for modeling:\n' , syml._feats_cat )
 
     print( '\nVALIDATION' )
     print( 'Constrained feature for splitting: ', syml._col_constr )
@@ -150,11 +150,6 @@ def main():
     print( '\nPARAMETER GRID' )
     print( 'Number of parameter grid points: ', len( syml._param_combs ) )
     print( 'Input parameters: ', syml._params )
-
-    if syml._keys_enc is not None:
-        print( '\nENCODING' )
-        print( 'One-hot encoding applied to the columns:\n', syml._keys_enc )
-        print( 'Shape of encoded data frame: ', syml._df_enc.shape )
 
     
     # Check feature and outcome variables

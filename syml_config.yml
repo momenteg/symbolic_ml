@@ -14,8 +14,8 @@
 ###############################
 
 model:
-    # Algorithm name, choose among [ 'rf-class' , 'rf-regr' , 'xgboost-class' , 'xgboost-regr' ]
-    algorithm: rf-class   
+    # Algorithm name, choose among [ 'class' , 'regr' ]
+    algorithm: class   
 
     # Metric to select best model, choose among [ 'accuracy' , 'r2' , 'auc' , 'cohen_kappa' ]
     metric: auc
@@ -58,66 +58,40 @@ validation:
 
 ###############################
 #                             # 
-#    RANDOM FOREST PARAMS     #
+#            PARAMS           #
 #                             #
 ###############################
 
-rf_params:
-    # Number of trees on the forest
-    n_estimators: '2:40:5'
+params:
+    # Loss function
+    # for classification             --> Logloss , CrossEntropy
+    # for multi-class classification --> MultiClass , MultiClassOneVsAll
+    # for regression                 --> MAE , MAPE , Quantile , RMSE , LogLinQuantile
+    loss_function: Logloss
 
-    # Criterion to measure the quality of the split, choose between [ 'entropy' , 'gini' ]
-    criterion: 'entropy,gini'
+    # Iterations, i.e. max number of trees that can be built
+    iterations: '4:16:2'
 
-    # Max depth of a tree
-    max_depth: '4:20:4'
+    # Learning rate
+    learning_rate: 0.3
 
-    # Min number of samples to split an internal node
-    min_samples_split: 4
+    # L2 regularization coefficient (any positive number allowed)
+    l2_leaf_reg: 3
 
-    # Min number of samples to be a leaf node
-    min_samples_leaf: 1
+    # Type of bootstrap, choose amng Bayesian, Bernoulli, No
+    bootstrap_type: Bayesian
 
-    # Use bootstrap when creating trees
-    bootstrap: True
+    # Depth of the tree , max number is 16
+    depth: '2,6,8,10,16'
 
-    # Use out-of-bag score
-    oob_score: True
+    # Random subspace method, i.e. percentage of features to use at each split selection, value in (0,1]
+    rsm: 1
 
-    # Class weights
-    class_weight: 'balanced'
+    # Leaf estimation method, choose between Gradient, Newton
+    leaf_estimation_method: Gradient
 
+    # Boosting scheme, choose between Ordered, Plain, Ordered works better for small datasets but it's slower
+    boosting_type: Ordered
 
-
-###############################
-#                             # 
-#        XGBOOST PARAMS       #
-#                             #
-###############################
-
-xg_params:
-    # Which booster to use, choose among [ 'gbtree' , 'dart' ,'gblinear' ],
-    # the first two use trees, the third one a linear model
-    booster: 'gbtree'
-
-    # Feature dimension used in boosting, set to maximum dimension of the feature 
-    num_feature: None
-
-    # Step size shrinkage used in update to prevents overfitting
-    eta: 0.3
-
-    # Minimum loss reduction required to make a further partition on a leaf node of the tree
-    gamma: 0
-
-    # Maximum depth of a tree. Increasing this value will make the model more complex
-    # and more likely to overfit. 0 indicates no limit
-    max_depth: 6
-
-    # L2 regularization term on weights. Increasing this value will make model more conservative
-    lambda: 1
-
-    # L1 regularization term on weights. Increasing this value will make model more conservative
-    alpha: 0
-
-    # The tree construction algorithm used in XGBoost, choose among [ 'auto', 'exact', 'approx', 'hist' ]
-    tree_method: 'auto'
+    # Random strength, i.e. score the standard deviation multiplier, use this param to avoid overfitting
+    random_strength: 1
