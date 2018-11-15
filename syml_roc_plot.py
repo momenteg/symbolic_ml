@@ -103,7 +103,7 @@ def _plot_separate_roc_curves( trues , probs , n_arr  , cmet , file_in ):
     # Initialize figure
     fig = plt.figure()
     string = str( n_arr ) + '-fold CV'
-    plt.title( string,' separate ROCs' , fontsize=16 ,fontweight='bold' )
+    plt.title( string + ' separate ROCs' , fontsize=16 ,fontweight='bold' )
     plt.xlabel( 'False Positive Rate' , fontsize=16 )
     plt.ylabel( 'True Positive Rate' , fontsize=16 )
     plt.xticks( fontsize=14 );  plt.yticks( fontsize=14 )
@@ -120,14 +120,14 @@ def _plot_separate_roc_curves( trues , probs , n_arr  , cmet , file_in ):
         # Get arrays
         y_score = np.array( probs[i] )
         y_true  = np.array( trues[i] )
-                    
-   
+        
+        
         # Compute all metrics
         cmet._compute_metrics( y_true , y_score )
 
 
         # Compute ROC AUC score
-        roc_auc = me.auc( self._fpr , self._tpr )
+        roc_auc = me.auc( cmet._fpr , cmet._tpr )
     
     
         # Get confidence interval
@@ -135,11 +135,11 @@ def _plot_separate_roc_curves( trues , probs , n_arr  , cmet , file_in ):
     
     
         # Get Youden's point for fpr and tpr
-        if len( self._fpr_best ) > 1:
-            self._fpr_best = fpr_best[0]
+        if len( cmet._fpr_best ) > 1:
+            cmet._fpr_best = fpr_best[0]
 
-        if len( self._tpr_best ) > 1:
-            self._tpr_best = tpr_best[0]
+        if len( cmet._tpr_best ) > 1:
+            cmet._tpr_best = tpr_best[0]
 
 
         # Create label
@@ -150,7 +150,7 @@ def _plot_separate_roc_curves( trues , probs , n_arr  , cmet , file_in ):
         
         
         # Plot ROC curve
-        plt.plot( self._fpr , self._tpr , lw=3 , label=label )
+        plt.plot( cmet._fpr , cmet._tpr , lw=3 , label=label )
 
               
     # Save figure
@@ -171,7 +171,7 @@ def _plot_separate_roc_curves( trues , probs , n_arr  , cmet , file_in ):
 # Plot composite ROC
 # =============================================================================
 
-def plot_composite_roc_curve( trues , probs , n_arr  , cmet , file_in  ):
+def _plot_composite_roc_curve( trues , probs , n_arr  , cmet , file_in  ):
     # Collect all TPR and FPR
     fpr_list  = []
     tpr_list  = []
@@ -188,7 +188,7 @@ def plot_composite_roc_curve( trues , probs , n_arr  , cmet , file_in  ):
                     
     
         # Compute metrics
-        cme._compute_metrics( y_true , y_score )
+        cmet._compute_metrics( y_true , y_score )
 
         fpr_list.append( cmet._fpr )
         tpr_list.append( cmet._tpr )
@@ -196,7 +196,7 @@ def plot_composite_roc_curve( trues , probs , n_arr  , cmet , file_in  ):
         sens_list.append( cmet._sensitivity )
         spec_list.append( cmet._specificity )
         
-        if len( fpr ) > max_length:
+        if len( cmet._fpr ) > max_length:
             max_length = len( cmet._fpr )
             x_com      = cmet._fpr.copy()
         
@@ -230,7 +230,8 @@ def plot_composite_roc_curve( trues , probs , n_arr  , cmet , file_in  ):
 
     # Initialize figure
     fig = plt.figure()
-    plt.title( '5-fold CV composite ROC' , fontsize=16 ,fontweight='bold' )
+    string = str( n_arr ) + '-fold CV'
+    plt.title( string + ' composite ROC' , fontsize=16 ,fontweight='bold' )
     plt.xlabel( 'False Positive Rate' , fontsize=16 )
     plt.ylabel( 'True Positive Rate' , fontsize=16 )
     plt.xticks( fontsize=14 );  plt.yticks( fontsize=14 )
@@ -273,7 +274,7 @@ def plot_composite_roc_curve( trues , probs , n_arr  , cmet , file_in  ):
     # Save figure
     plt.tight_layout()
         
-    save_plot = filein[:len( filein )-5:] + '_composite_roc_curve.png'
+    save_plot = file_in[:len( file_in )-5:] + '_composite_roc_curve.png'
         
     if '.svg' in save_plot:
         plt.savefig( save_plot , format='svg' , dpi=1200 )
@@ -306,10 +307,10 @@ def main():
 
     # Plot ROC curves
     print( '\nPlot separate ROC curve ....' )
-    plot_separate_roc_curves( trues , probs , n_arr , cmet , args.file_json )
+    _plot_separate_roc_curves( trues , probs , n_arr , cmet , args.file_json )
 
     print( '\nPlot composite ROC curve ....' )
-    plot_composite_roc_curve( trues , probs , n_arr , cmet , args.file_json )
+    _plot_composite_roc_curve( trues , probs , n_arr , cmet , args.file_json )
 
     print( '\n\n' )
 

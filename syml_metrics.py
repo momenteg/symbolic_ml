@@ -80,9 +80,10 @@ class Metrics:
     # Compute metrics
     # ===================================
     
-    def _compute_metrics( self , y_true , y_prob ):
+    def _compute_metrics( self , y_true , y_prob , verbose=True ):
         # Common print
-        print( '\t\tTesting metrics:' )
+        if verbose:
+            print( '\t\tTesting metrics:' )
 
         
         # Case --> Classification
@@ -110,29 +111,34 @@ class Metrics:
                     self._calc_sens_and_spec( tpr , fpr , thres )
                     self._tpr         = tpr
                     self._fpr         = fpr
-            
-                print( '\t\t\taccuracy: %s - precision: %s - recall: %s - f1score: %s - cohen_kappa: %s' % \
-                    ( self._num2str( self._accuracy ) , self._num2str( self._precision ) ,
-                      self._num2str( self._recall ) , self._num2str( self._f1score ) , 
-                      self._num2str( self._cohen_kappa ) ) )
-                print( '\t\t\tauc: %s - sensitivity( %s ): % s - specificity( %s ): %s' % \
-                    ( self._num2str( self._auc ) , self._num2str( self._threshold ) , 
-                      self._num2str( self._sensitivity ) , self._num2str( self._threshold ) , 
-                      self._num2str( self._specificity ) ) )
+                
+                if verbose:
+                    print( '\t\t\taccuracy: %s - precision: %s - recall: %s - f1score: %s - cohen_kappa: %s' % \
+                        ( self._num2str( self._accuracy ) , self._num2str( self._precision ) ,
+                        self._num2str( self._recall ) , self._num2str( self._f1score ) , 
+                        self._num2str( self._cohen_kappa ) ) )
+                    print( '\t\t\tauc: %s - sensitivity( %s ): % s - specificity( %s ): %s' % \
+                        ( self._num2str( self._auc ) , self._num2str( self._threshold ) , 
+                        self._num2str( self._sensitivity ) , self._num2str( self._threshold ) , 
+                        self._num2str( self._specificity ) ) )
         
             else:
                 self._accuracy    = accuracy_score( y_true , y_class )
                 self._cohen_kappa = cohen_kappa_score( y_true , y_class )
-                print( '\t\t\taccuracy: %s - cohen_kappa: %s ' % \
-                       ( self._num2str( self._accuracy ) , self._num2str( self._cohen_kappa ) ) )    
+                
+                if verbose:
+                    print( '\t\t\taccuracy: %s - cohen_kappa: %s ' % \
+                        ( self._num2str( self._accuracy ) , self._num2str( self._cohen_kappa ) ) )    
     
 
         # Case --> Regression
         elif self._task_type == 'regression':
             self._mse = mean_squared_error( y_true , y_prob )
             self._r2  = r2_score( y_true , y_pred )
-            print( '\t\t\tmse: %s - r_squared: %s ' % \
-                  ( self._num2str( self._accuracy ) , self._num2str( self._cohen_kappa ) ) ) 
+            
+            if verbose:
+                print( '\t\t\tmse: %s - r_squared: %s ' % \
+                      ( self._num2str( self._accuracy ) , self._num2str( self._cohen_kappa ) ) ) 
 
         return getattr( self , '_' + self._metric )
 
@@ -174,7 +180,7 @@ class Metrics:
     # Get confidence interval
     # =============================================================================
 
-    def _ci_bootstrap_roc( y_true , y_score , level=95 , n_bootstraps=1000 ):
+    def _ci_bootstrap_roc( self , y_true , y_score , level=95 , n_bootstraps=1000 ):
         # Compute metrics through bootstrapping
         bootstrap_auc  = []
         bootstrap_sens = []
@@ -186,7 +192,7 @@ class Metrics:
             ind = np.random.choice( ind_all , len( ind_all ) - 1 )
         
             try:
-                self._compute_metrics( y_true[ind] , y_score[ind] )
+                self._compute_metrics( y_true[ind] , y_score[ind] , verbose=False )
                 bootstrap_auc.append( self._auc )
                 bootstrap_sens.append( self._sensitivity )
                 bootstrap_spec.append( self._specificity )
