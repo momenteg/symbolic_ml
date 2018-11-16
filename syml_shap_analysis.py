@@ -7,6 +7,9 @@ import argparse
 import sys , os
 import json
 import numpy as np
+import pandas as pd
+
+from catboost import Pool
 
 
 
@@ -15,12 +18,13 @@ import numpy as np
 # MATPLOTLIB WITH DISABLED X-SERVER 
 # =============================================================================
 
-#import matplotlib as mpl
-#mpl.use( 'Agg' )
+import matplotlib as mpl
+mpl.use( 'Agg' )
 import matplotlib.pyplot as plt
 
 import shap
-shap.initjs()
+
+
 
 
 # =============================================================================
@@ -35,12 +39,21 @@ myfloat2 = np.float64
 
 
 # =============================================================================
+# MATPLOTLIB WITH DISABLED X-SERVER 
+# =============================================================================
+
+SEP = ','
+
+
+
+
+# =============================================================================
 # Get input arguments 
 # =============================================================================
 
 def _example():
     print( '\n\nBar plot of feature importance by aggregating one-hot encoded variables:\n' )
-    print( '"""\npython syml_shap_analysis.py -i1 syml_shap_class_2018-11-15-21-28-24_16188673153453647142.npy -i2 syml_history_class_2018-11-15-21-28-24_16188673153453647142.json\n"""\n\n' )
+    print( '"""\npython syml_shap_analysis.py -i1 syml_shap_class_2018-11-16-09-22-46_8305569712766266153.npy -i2 lavolta_01_baseline_asl_asl2_asl3.csv -i3 ANONID,NUMEX,NUMEX-BINARY\n"""\n\n' )
 
 
 def _get_args():
@@ -51,14 +64,11 @@ def _get_args():
     parser.add_argument('-i1', '--file_npy', dest='file_npy',
                         help='Specify input NPY file containing shap values')
 
-    parser.add_argument('-i2', '--file_json', dest='file_json',
-                        help='Specify input JSON file containing the history')
-     
-    parser.add_argument('-i3', '--file_csv', dest='file_csv',
+    parser.add_argument('-i2', '--file_csv', dest='file_csv',
                         help='Specify input CSV file containing the input dataset')
      
-    parser.add_argument('-i4', '--col_out', dest='col_out',
-                        help='Specify outcome variable')
+    parser.add_argument('-i3', '--col_excl', dest='col_excl',
+                        help='Specify columns to exclude separated by a ","')
     
     parser.add_argument('-h', '--help', dest='help', action='store_true',
                         help='Print example command line' )
@@ -73,128 +83,169 @@ def _get_args():
     if args.file_npy is None:
         parser.print_help()
         sys.exit('\nERROR: Input SYML NPY history file not specified!\n')
-
-    if args.file_json is None:
-        parser.print_help()
-        sys.exit('\nERROR: Input SYML JSON history file not specified!\n')
-
-    if os.path.isfile( args.file_json ) is False:
-        parser.print_help()
-        sys.exit('\nERROR: Input SYML JSON history file does not exist!\n')
     
-    if ( args.file_csv is not None and args.col_out is None ) or \
-        ( args.file_csv is not None and args.col_out is None ): 
+    if os.path.isfile( args.file_npy ) is False:
         parser.print_help()
-        sys.exit('\nERROR: Both an input CSV and the outcome column have to be specified!\n')
+        sys.exit('\nERROR: Input SYML NPY file does not exist!\n')
  
-    if args.file_csv is not None:
-        if os.path.isfile( args.file_csv ) is False:
-            parser.print_help()
-            sys.exit('\nERROR: Input CSV file does not exist!\n')
+    if args.file_csv is None:
+        parser.print_help()
+        sys.exit('\nERROR: Input CSV data not specified!\n')
 
+    if os.path.isfile( args.file_csv ) is False:
+        parser.print_help()
+        sys.exit('\nERROR: Input CSV data file does not exist!\n')
+    
     return args
 
 
 
 
 # =============================================================================
-# Get data from JSON
+# Get data from NPY
 # =============================================================================
 
 def _get_data_from_npy( file_npy ):
-    arr = np.load( file_npy )
-    return arr[:,:,:arr.shape[2]-1]
+    # Load NPY file
+    shaps   = np.load( file_npy )
+    shaps   = shaps[:,:,:shaps.shape[2]-1] 
+    
+
+    # Get shape
+    if len( shaps.shape ) == 3:
+        n_shaps = shaps.shape[0]
+    elif len( shaps.shape ) == 2:
+        n_shaps = 1
+    else:
+        sys.exit( '\nERROR ( _get_data_from_npy ): issue with shape of SHAP array ---> ' + ','.join( shaps.shape ) + '!\n\n' ) 
+
+    return shaps , n_shaps
+
 
 
 
 # =============================================================================
-# Get data from JSON
+# Get data from CSV
 # =============================================================================
 
-def _get_data_from_json( file_json ):
-    df_json = json.loads( open( file_json ).read() )
-    feats   = df_json[ 'feature_cols' ]
-    return feats
-
-
-
-
-# =============================================================================
-# Get data from JSON
-# =============================================================================
-
-def _get_data_from_csv( file_csv , col_out ):
+def _get_data_from_csv( file_csv , col_excl ):
+    # Read CSV
     X = pd.read_csv( file_csv , sep=SEP )
-    X = X.drop( col_out )
+    
+    
+    # Split column names
+    col_excl = col_excl.split( SEP )
+    X        = X.drop( col_excl , axis=1 )
+    
     return X
 
 
 
+
 # =============================================================================
-# Plot separate summary plots
+# Get indices of categorical variables
 # =============================================================================
 
-def _plot( feats ):
-    import catboost
-    import pandas as pd
-    model = catboost.CatBoostClassifier()
-    model.load_model( 'tmp/syml_model_class_2018-11-15-22-50-06_7185573423039249820_fold00.bin' )
-    X     = pd.read_csv( '../../asthma_project/ml/ml_actionable_data/lavolta_01_baseline_asl_asl2_asl3.csv' , sep=',' )
-    print( X.keys() )
-    X     = X.drop( [ 'NUMEX' , 'NUMEX-BINARY' , 'ANONID' ] , axis=1 ) 
-    df_json = json.loads( open( 'tmp/syml_history_class_2018-11-15-22-50-06_7185573423039249820.json' ).read() )
-    feats_cat = df_json[ 'feature_cols_cat' ]
-    print( feats_cat )
-    
-    inds = []
-    for i in range( len( feats_cat ) ):
-        ind = feats.index( feats_cat[i] )
-        inds.append( ind )
-    print( inds )
-    print( X.keys() )
-    xpool     = catboost.Pool( X , cat_features=inds )
+def _get_indices_categ( X ):
+    inds_cat = np.argwhere( X.dtypes == object ).reshape( -1 ).tolist()
 
-    explainer = shap.TreeExplainer(model)
-    shaps = explainer.shap_values( xpool )
-    
-    fig = shap.summary_plot( shaps , X , show=False )
-    plt.savefig( 'scratch.png' )
-    #plt.show()        
+    if len( inds_cat ) == 0:
+        inds_cat = None
+
+    return inds_cat
+
+
 
 
 # =============================================================================
-# Plot separate summary plots
+# Plot shap analysis
 # =============================================================================
 
-def _plot_separate_summary_plots( feats, shaps  , file_in  , X=None ):
-    for i in range( shaps.shape[0] ):
-        # Plot separate summary plots shap-impact
-        if i < 10:
-            str_num = 'fold0' + str( i )
+def _plot_shap_analysis( shaps , n_shaps , X , file_in , inds_cat=None , ext='.png' ):
+    # Catboost data pool
+    if inds_cat is None: 
+        xpool   = Pool( X )
+        X_nocat = X
+    else:
+        print( X.keys()[ inds_cat ] )
+        xpool   = Pool( X , cat_features=inds_cat )
+        X_nocat = X.drop( X.keys()[ inds_cat ] , axis=1 )
+  
+ 
+    # Output stem and extension
+    path_out = os.path.join( os.path.dirname( file_in ) , 'shap_plots' )
+    basename = os.path.basename( file_in )
+    basename = basename[:len( basename )-4]
+
+    if os.path.isdir( path_out ) is False:
+        os.mkdir( path_out )
+
+    stem_out = os.path.join( path_out , basename )
+
+
+    # For loop on SHAP arrays 
+    for i in range( n_shaps ):
+        print( '\n----> Plotting for SHAP array n.', i )
+
+        # Case A ---> n_shaps == 1
+        if n_shaps == 1:
+            shaps_aux = shaps.copy()
+            str_num   = ''
+            
+        # Case B ---> n_shaps > 1
         else:
-            str_num = 'fold' + str( i )
+            # String to label the fold of CV
+            shaps_aux = shaps[i].copy()
 
-        print( shaps[0].shape )
-        fig = shap.summary_plot( shaps[0] , feats )
-        save_plot = file_in[:len( file_in )] + '_shap-plot-impact-point_' + str_num + '.pdf'
-        #plt.tight_layout()
-        #plt.savefig( save_plot , transparent=True , dpi=300 )
-        plt.show()        
+            if i < 10:
+                str_num = 'fold0' + str( i )
+            else:
+                str_num = 'fold' + str( i )
 
-        fig = shap.summary_plot( shaps[0] , feats , plot_type='bar' )
-        save_plot = file_in[:len( file_in )] + '_shap-plot-impact-mean_' + str_num + '.pdf'
+
+        # Point-wise impact on modeling
+        fig       = shap.summary_plot( shaps_aux , X , show=False )
+        save_plot = stem_out + '_shap-plot-impact-point_' + str_num + ext
         plt.tight_layout()
         plt.savefig( save_plot , transparent=True , dpi=300 )
+        plt.close()
+        print( '\n------------> .... created ', save_plot )
+              
 
+        # Mean impact on modeling
+        fig = shap.summary_plot( shaps_aux , X , plot_type='bar' , show=False )
+        save_plot = stem_out + '_shap-plot-impact-mean_' + str_num + ext
+        plt.tight_layout()
+        plt.savefig( save_plot , transparent=True , dpi=300 )
+        plt.close()
+        print( '\n------------> .... created ', save_plot )
         
-        # Plot dependency with respect to a variable
-        if X is not None:
-            for j in range( len( feats ) ):
-                fig = shap.dependence_plot( feats[j] , shaps[0] , X )
-                save_plot = file_in[:len( file_in )] + '_shap-plot-depend-' + feats[i] + '_' + str_num + '.pdf'
-                plt.tight_layout()
-                plt.savefig( save_plot , transparent=True , dpi=300 )
-           
+
+        # Plot dependency with respect to a variablei
+        inds_sel    = np.setdiff1d( np.arange( shaps_aux.shape[1] ) , inds_cat )
+        shaps_nocat = shaps_aux[:,inds_sel]
+
+        for j in range( len( X_nocat.keys() ) ):
+            print( X_nocat.keys()[j] )
+            print( shaps_nocat.shape )
+            print( X_nocat.shape )
+            print( np.unique( X_nocat[ X_nocat.keys()[j] ] ) )
+            
+            fig = shap.dependence_plot(  X_nocat.keys()[j] , shaps_nocat , X_nocat , show=False )
+            save_plot = stem_out + '_shap-plot-depend-' + X_nocat.keys()[j] + '_' + str_num + ext
+            plt.tight_layout()
+            plt.savefig( save_plot , transparent=True , dpi=300 )
+            plt.close()
+            print( '\n--------------------> .... created ', save_plot )
+
+       
+    # Plot Composite shap plots
+    if n_shaps > 1:
+        print( '\n\n----> Plotting composite SHAP plots' )
+        shap_comp = np.mean( shaps , axis=0 )
+        _plot_shap_analysis( shaps_comp , 1 , X , file_in , inds_cat=inds_cat , ext='.png' )
+ 
+
 
         
 # =============================================================================
@@ -236,32 +287,42 @@ def main():
     args = _get_args()
     
     print( '\nInput NPY file with shap values: ', args.file_npy )
-    print( 'Input JSON history file: ', args.file_json )
     print( 'Input CSV data file: ', args.file_csv )
-    print( 'Output column: ', args.col_out )
+    print( 'Columns to exclude: ', args.col_excl )
 
 
     # Get all necessary data
-    shaps = _get_data_from_npy( args.file_npy )
-    feats = _get_data_from_json( args.file_json )
+    shaps , n_shaps = _get_data_from_npy( args.file_npy )
+    X               = _get_data_from_csv( args.file_csv , args.col_excl )
 
-    if args.file_csv:
-        X = _get_data_from_csv( args.file_csv , args.col_out )
-    else:
-        X = None
-    
     print( '\nShaps shape: ', shaps.shape )
-    print( '\nNumber of features: ', len( feats ) )
-    print( 'Feature names:\n', feats )
+    print( '\nNumber of features: ', len( X.keys() ) )
+    print( 'Feature names:\n', X.keys() )
 
 
-    # Plot ROC curves
-    print( '\nPlot SHAP separate summary plots ....' )
-    _plot( feats )
-    #_plot_separate_summary_plots( feats , shaps , args.file_npy , X=X )
+    # Get categorical indeces
+    inds_cat = _get_indices_categ( X )
+    
+    if inds_cat is not None:
+        print( '\nIndices corresponding to categorical features: ', inds_cat )
+        print( 'Categorical features: ', X.keys()[ inds_cat ] )
 
-    print( '\nPlot SHAP composite summary plot ....' )
-    #_plot_composite_summary_plot( feats , shaps , args.file_npy , X=X )
+
+    # Checkpoint
+    if n_shaps == 1:
+        shape_aux = shaps.shape
+    else:
+        shape_aux = shaps.shape[1:]        
+
+    if shape_aux != X.shape:
+        sys.exit( '\nERROR ( main ): shape of SHAP values (' + str( shape_aux[0] ) + ',' + \
+                str( shape_aux[1] ) + ') does not coincide ' + \
+               ' with shape of data frame (' + str( X.shape[0] ) + ',' + str( X.shape[1] ) + ')!\n\n' )
+
+
+    # Plot SHAP analysis
+    print( '\n\nPlot SHAP analysis plots ....' )
+    _plot_shap_analysis( shaps , n_shaps , X , args.file_npy , inds_cat=inds_cat )
 
     print( '\n\n' )
 
