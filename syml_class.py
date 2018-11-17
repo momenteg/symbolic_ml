@@ -221,6 +221,9 @@ class SYML:
     # ===================================
  
     def _parse_arg( self , arg , var='variable' ):
+        print( var )
+        print( arg )            
+
         try:
             # Case single entry
             if self._is_single_variable( arg ): 
@@ -257,8 +260,7 @@ class SYML:
 
                         if arg_type == myint:
                             entries = np.array( entries ).astype( myint )
-
-                        entries = entries.tolist()
+                            entries = entries.tolist()
         
         except:
             sys.exit( '\nERROR ( SYML -- _parse_arg ): issue with ' + var + '!\n\n' )
