@@ -82,7 +82,7 @@ params:
     bootstrap_type: Bayesian
 
     # Depth of the tree , max number is 16
-    depth: '2,6,8,10,16'
+    depth: 2
 
     # Random subspace method, i.e. percentage of features to use at each split selection, value in (0,1]
     rsm: 1
@@ -95,3 +95,8 @@ params:
 
     # Random strength, i.e. score the standard deviation multiplier, use this param to avoid overfitting
     random_strength: 1
+
+    # Number of threads; if -1, it uses all threads
+    thread_count: 1
+
+

@@ -64,7 +64,7 @@ CV_TYPES = [ 'k-fold' , 'resampling' ]
 
 PARAMS = [ 'loss_function' , 'iterations' , 'learning_rate' , 'l2_leaf_reg' ,
            'bootstrap_type' , 'depth' , 'rsm' , 'leaf_estimation_method' , 
-           'boosting_type' , 'random_strength' ] 
+           'boosting_type' , 'random_strength' , 'thread_count' ] 
 
 
 
