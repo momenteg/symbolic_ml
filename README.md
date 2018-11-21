@@ -8,7 +8,7 @@ to explain the model output.
 
 ## Requirements
 
-__Python-2.7__, __Numpy-1.15.2__ , __Scipy-1.1.0_, Sklearn-0.20.0, Pandas-0.23.4 , CatBoost-0.11.1 ,_Shap-0.25.2.
+__Python-2.7__, __Numpy-1.15.2__ , __Scipy-1.1.0__, __Sklearn-0.20.0__, __Pandas-0.23.4__, __CatBoost-0.11.1__, __Shap-0.25.2__.
 
 
 ## Files
