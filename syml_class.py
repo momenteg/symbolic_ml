@@ -64,7 +64,7 @@ CV_TYPES = [ 'k-fold' , 'resampling' ]
 
 PARAMS = [ 'loss_function' , 'iterations' , 'learning_rate' , 'l2_leaf_reg' ,
            'bootstrap_type' , 'depth' , 'rsm' , 'leaf_estimation_method' , 
-           'boosting_type' , 'random_strength' , 'thread_count' ] 
+           'boosting_type' , 'random_strength' , 'max_bin' ] 
 
 
 
@@ -221,8 +221,9 @@ class SYML:
     # ===================================
  
     def _parse_arg( self , arg , var='variable' ):
+        print( '\n' )
         print( var )
-        print( arg )            
+        print( arg )
 
         try:
             # Case single entry
@@ -254,9 +255,15 @@ class SYML:
                                 entries[i] = myfloat( entries[i] )
 
                         if ':' in arg and ( arg_type == myint or argtype == myfloat ):
-                            entries = np.linspace( myfloat( entries[0] ) , 
-                                                   myfloat( entries[1] ) ,
-                                                   myfloat( entries[2] ) )
+                            if arg_type == myint:
+                                entries = np.arange( myint( entries[0] ) , 
+                                                     myint( entries[1] ) ,
+                                                     myint( entries[2] ) )
+
+                            elif arg_type == myfloat:
+                                entries = np.linspace( myfloat( entries[0] ) , 
+                                                       myfloat( entries[1] ) ,
+                                                       myfloat( entries[2] ) )
 
                         if arg_type == myint:
                             entries = np.array( entries ).astype( myint )
@@ -264,6 +271,8 @@ class SYML:
         
         except:
             sys.exit( '\nERROR ( SYML -- _parse_arg ): issue with ' + var + '!\n\n' )
+
+        print( entries )
 
         return entries
 
@@ -354,9 +363,9 @@ class SYML:
                     if self._select[i] in self._df.keys():
                         self._feats.append( self._select[i] )
                     else:
-                        sys.exit( '\nERROR ( SYML -- _get_features ): feature columns ' + \
-                                  self._select[i] + ' is not in input data frame!\n'    + \
-                                  'Available Keys: (' + ','.join( self._df.keys() ) + ')\n\n' )    
+                        print( '\nWarning ( SYML -- _get_features ): feature columns ' + \
+                                self._select[i] + ' is not in input data frame!\n'    + \
+                                'Available Keys: (' + ','.join( self._df.keys() ) + ')\n\n' )    
 
         else:
             self._feats = self._df.keys()[:].tolist()
@@ -394,9 +403,9 @@ class SYML:
                         self._feats.remove( self._exclude[i] )
                         self._feats_excl.append( self._exclude[i] )
                     else:
-                        sys.exit( '\nERROR ( SYML -- _get_features ): feature column ' + \
-                                  self._exclude[i] + ' is not in input data frame!\n'    + \
-                                  'Available Keys: (' + ','.join( self._df.keys() ) + ')\n\n' )    
+                        print( '\nWarning ( SYML -- _get_features ): feature column ' + \
+                               self._exclude[i] + ' is not in input data frame!\n'    + \
+                               'Available Keys: (' + ','.join( self._df.keys() ) + ')\n\n' )    
 
         
         # Get categorical columns

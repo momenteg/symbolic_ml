@@ -135,7 +135,16 @@ def _get_data_from_csv( file_csv , col_excl ):
     
     # Split column names
     col_excl = col_excl.split( SEP )
-    X        = X.drop( col_excl , axis=1 )
+
+    aux = []
+    for i in range( len( col_excl ) ):
+        if col_excl[i] in X.keys():
+            aux.append( col_excl[i] )
+        else:
+            print( '------ Warning column ', col_excl[i],' to be excluded is not present in data frame' )
+
+    if len( aux ):
+        X = X.drop( aux , axis=1 )
     
     return X
 
@@ -221,7 +230,8 @@ def _plot_shap_analysis( shaps , n_shaps , X , file_in , inds_cat=None , ext='.p
         print( '\n------------> .... created ', save_plot )
         
 
-        # Plot dependency with respect to a variablei
+        # Plot dependency with respect to a variable
+        '''
         inds_sel    = np.setdiff1d( np.arange( shaps_aux.shape[1] ) , inds_cat )
         shaps_nocat = shaps_aux[:,inds_sel]
 
@@ -237,12 +247,13 @@ def _plot_shap_analysis( shaps , n_shaps , X , file_in , inds_cat=None , ext='.p
             plt.savefig( save_plot , transparent=True , dpi=300 )
             plt.close()
             print( '\n--------------------> .... created ', save_plot )
+        '''
 
        
     # Plot Composite shap plots
     if n_shaps > 1:
         print( '\n\n----> Plotting composite SHAP plots' )
-        shap_comp = np.mean( shaps , axis=0 )
+        shaps_comp = np.mean( shaps , axis=0 )
         _plot_shap_analysis( shaps_comp , 1 , X , file_in , inds_cat=inds_cat , ext='.png' )
  
 

@@ -41,9 +41,6 @@ def _get_args():
     parser.add_argument('-o', '--path_out', dest='path_out', default='./' ,
                         help='Specify destination where to save outputs')  
     
-    parser.add_argument('-l', '--label', dest='label',
-                        help='Specify additional label for outputs' )
-
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='Enable verbose mode' )
     

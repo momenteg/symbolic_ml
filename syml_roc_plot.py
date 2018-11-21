@@ -149,7 +149,7 @@ def _plot_separate_roc_curves( trues , probs , n_arr  , cmet , file_in ):
         
         
         # Plot ROC curve
-        plt.plot( cmet._fpr , cmet._tpr , lw=3 , label=label )
+        plt.plot( cmet._fpr , cmet._tpr , lw=2 , label=label )
 
               
     # Save figure
@@ -171,14 +171,17 @@ def _plot_separate_roc_curves( trues , probs , n_arr  , cmet , file_in ):
 # =============================================================================
 
 def _plot_composite_roc_curve( trues , probs , n_arr  , cmet , file_in  ):
+    from scipy import interp
+    
     # Collect all TPR and FPR
-    fpr_list  = []
     tpr_list  = []
     auc_list  = []
     sens_list = []
     spec_list = []
     
     max_length = 0
+
+    mean_fpr = np.linspace(0, 1, 100)
     
     for i in range( n_arr ):
         # Get individual y_score and y_true
@@ -189,8 +192,8 @@ def _plot_composite_roc_curve( trues , probs , n_arr  , cmet , file_in  ):
         # Compute metrics
         cmet._compute_metrics( y_true , y_score )
 
-        fpr_list.append( cmet._fpr )
-        tpr_list.append( cmet._tpr )
+        tpr_list.append( interp( mean_fpr , cmet._fpr , cmet._tpr ) )
+        tpr_list[-1][0] = 0.0
         auc_list.append( cmet._auc )
         sens_list.append( cmet._sensitivity )
         spec_list.append( cmet._specificity )
@@ -200,21 +203,7 @@ def _plot_composite_roc_curve( trues , probs , n_arr  , cmet , file_in  ):
             x_com      = cmet._fpr.copy()
         
         
-    # Bring all arrays to the same length
-    for i in range( n_arr ):
-        fpr = fpr_list[i]
-        tpr = tpr_list[i]
-        
-        if len( fpr ) < max_length:
-            func    = interpolate.interp1d( fpr , tpr )
-            tpr_new = func( x_com )
-        
-            fpr_list[i] = x_com
-            tpr_list[i] = tpr_new 
-            
-    
     # Convert array to list    
-    fpr_list  = np.array( fpr_list )
     tpr_list  = np.array( tpr_list )    
     auc_list  = np.array( auc_list ) 
     sens_list = np.array( sens_list )    
@@ -222,10 +211,15 @@ def _plot_composite_roc_curve( trues , probs , n_arr  , cmet , file_in  ):
         
         
     # Construct the 3 curves
-    tpr_min  = np.min( tpr_list , axis=0 )
-    tpr_mean = np.mean( tpr_list , axis=0 )
-    tpr_max  = np.max( tpr_list , axis=0 )    
+    mean_tpr     = np.mean( tpr_list , axis=0)
+    mean_tpr[-1] = 1.0
+    mean_auc     = me.auc( mean_fpr , mean_tpr )
+    std_auc      = np.std( auc_list )
 
+    std_tpr    = np.std( tpr_list , axis=0 )
+    tprs_upper = np.minimum( mean_tpr + std_tpr , 1 )
+    tprs_lower = np.maximum( mean_tpr - std_tpr , 0 )
+ 
 
     # Initialize figure
     fig = plt.figure()
@@ -261,18 +255,18 @@ def _plot_composite_roc_curve( trues , probs , n_arr  , cmet , file_in  ):
         
         
     # Plot ROC curve
-    plt.plot( x_com , tpr_min , lw=1 , color='black' )    
-    plt.plot( x_com , tpr_mean , lw=3 , color='black' )
-    plt.plot( x_com , tpr_max , lw=1 , color='black' )
-              
-          
-    # Color area between min and max ROC
-    plt.fill_between( x_com , tpr_min , tpr_max , alpha=0.5 , color='gray' )
+    plt.plot( mean_fpr , mean_tpr , lw=2 , color='black' , label='Mean ROC curve' )
+
     
+    # Color area between min and max ROC
+    plt.fill_between( mean_fpr , tprs_lower , tprs_upper , color='grey' , alpha=.35 ,
+                      label=r'$\pm$ 1 std. dev.' )
+          
     
     # Save figure
     plt.tight_layout()
-        
+    plt.legend( fontsize=10 )
+    
     save_plot = file_in[:len( file_in )-5:] + '_composite_roc_curve.png'
         
     if '.svg' in save_plot:
@@ -299,9 +293,9 @@ def main():
 
 
     # Initialize metrics class
-    cmet = Metrics( task      = 'classification' ,
-                    n_classes = 2                ,
-                    metric    = 'auc'            ) 
+    cmet = Metrics( task      = 'class' ,
+                    n_classes = 2       ,
+                    metric    = 'auc'   ) 
 
 
     # Plot ROC curves

@@ -1,5 +1,5 @@
 #
-# CONFIG FILE FOR SKLEARN-BASED
+# CONFIG FILE FOR CATBOOST-BASED
 #     SYMBOLIC ML MODELING          
 #
 # Author   : Filippo Arcadu
@@ -96,7 +96,6 @@ params:
     # Random strength, i.e. score the standard deviation multiplier, use this param to avoid overfitting
     random_strength: 1
 
-    # Number of threads; if -1, it uses all threads
-    thread_count: 1
-
-
+    # Max bin, i.e. the number of splits for numerical features
+    max_bin: 32
+    
