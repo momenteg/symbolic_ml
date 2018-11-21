@@ -2,7 +2,7 @@
 
 
 ## Description
-This framework represents a wrapper around [CatBoost](https://github.com/catboost/catboost) [^fn1] for the modeling and [Shap](https://github.com/slundberg/shap) [^fn2]
+This framework represents a wrapper around [CatBoost](https://github.com/catboost/catboost) for the modeling and [Shap](https://github.com/slundberg/shap)
 to explain the model output. 
 
 
@@ -97,5 +97,6 @@ python syml_shap_analysis.py
 
 
 ## References
-[^fn1]: Anna Veronika Dorogush, Vasily Ershov, Andrey Gulin, "CatBoost: gradient boosting with categorical features support". Workshop on ML Systems at NIPS 2017. 
-[^fn2]: Scott M. Lundberg and Su-In Lee, "A Unified Approach to Interpreting Model Predictions", Advances in Neural Information Processing Systems 30 at NIPS 2017.
+__CatBoost__: Anna Veronika Dorogush, Vasily Ershov, Andrey Gulin, "CatBoost: gradient boosting with categorical features support". Workshop on ML Systems at NIPS 2017.
+ 
+__Shap values__: Scott M. Lundberg and Su-In Lee, "A Unified Approach to Interpreting Model Predictions", Advances in Neural Information Processing Systems 30 at NIPS 2017.
