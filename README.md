@@ -2,7 +2,7 @@
 
 
 ## Description
-This framework represents a wrapper around [CatBoost](https://github.com/catboost/catboost)[^fn1] for the modeling and [Shap](https://github.com/slundberg/shap)[^fn2]
+This framework represents a wrapper around [CatBoost](https://github.com/catboost/catboost) [^fn1] for the modeling and [Shap](https://github.com/slundberg/shap) [^fn2]
 to explain the model output. 
 
 
@@ -79,14 +79,14 @@ The outputs related to a certain training job are all hashed with the same code.
 ## Create separate and composite ROC plots
 ```
 python syml_roc_plot.py   
-  -i1 < JSON history file >       # JSON history file outputted by __syml_train.py__   
+  -i1 < JSON history file >       # JSON history file outputted by syml_train.py   
 ```
 
 
 ## Create shap analysis plots
 ```
 python syml_shap_analysis.py   
-  -i1 < NPY shap file >           # Input NPY file containing the shap values outputted by __syml_train.py__   
+  -i1 < NPY shap file >           # Input NPY file containing the shap values outputted by syml_train.py   
   -i2 < CSV file >                # Input CSV file containing the data points to analyze
   -i3 < list of keys >            # List of columns of the CSV to exclude
 ```
