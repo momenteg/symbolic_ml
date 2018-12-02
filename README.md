@@ -10,6 +10,13 @@ to explain the model output.
 
 __Python-2.7__, __Numpy-1.15.2__ , __Scipy-1.1.0__, __Sklearn-0.20.0__, __Pandas-0.23.4__, __CatBoost-0.11.1__, __Shap-0.25.2__.
 
+Also a conda env export is available:
+```
+conda create -n new environment --file requirements.txt
+```
+
+
+
 
 ## Files
 * __syml_train.py__  main script to train a model, it has dependency on __syml_class.py__;
